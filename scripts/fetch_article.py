@@ -31,6 +31,8 @@ PUBLISHER_DOMAINS = {
     "onlinelibrary.wiley.com": "wiley",
     "tandfonline.com": "taylor_francis",
     "frontiersin.org": "frontiers",
+    "academic.oup.com": "oup",
+    "oup.com": "oup",
 }
 
 
@@ -89,6 +91,8 @@ def _detect_publisher(url: str, publisher_name: str) -> str:
         return "mdpi"
     if "taylor" in name_lower or "francis" in name_lower:
         return "taylor_francis"
+    if "oxford" in name_lower or "oup" in name_lower:
+        return "oup"
 
     return "generic"
 
@@ -114,6 +118,8 @@ def fetch_html(doi: str, publisher: str, url: str, output_dir: Path, study_id: s
         output_path = output_path.with_suffix(".xml")
     elif publisher == "wiley":
         content = _fetch_wiley(doi, url)
+    elif publisher == "oup":
+        content = _fetch_oup(doi, url)
     else:
         content = _fetch_open_access(url)
 
@@ -185,6 +191,63 @@ def _fetch_wiley(doi: str, url: str) -> str:
 
     print("  ⚠ No WILEY_TDM_TOKEN set. Trying direct HTML fetch...")
     return _fetch_open_access(url)
+
+
+def _fetch_oup(doi: str, url: str) -> str:
+    """Fetch article from OUP via direct access or Shibboleth institutional login.
+
+    Falls back to CrossRef PDF link if Shibboleth login fails.
+    """
+    # Step 1: Try direct HTML fetch (works for open access OUP articles)
+    try:
+        html = _fetch_open_access(url)
+        if len(html) > 5000 and "article-body" in html.lower():
+            print("  ✅ OUP article fetched directly (open access)")
+            return html
+    except Exception:
+        pass
+
+    # Step 2: Try Shibboleth login via Selenium
+    print("  🔑 OUP requires authentication. Attempting Shibboleth login...")
+    try:
+        from scripts.institutional_login import get_session
+
+        # Construct the proper article URL for OUP
+        article_url = url
+        if "doi.org" in url:
+            article_url = f"https://academic.oup.com/article-lookup/doi/{doi}"
+
+        session = get_session(headless=True)
+        html = session.fetch_authenticated_html(article_url, publisher="oup")
+
+        if len(html) > 5000:
+            print("  ✅ OUP article fetched via Shibboleth")
+            return html
+    except Exception as e:
+        print(f"  ⚠ Shibboleth login failed: {e}")
+
+    # Step 3: Try CrossRef PDF link as fallback
+    print("  📥 Falling back to CrossRef PDF link...")
+    try:
+        crossref_url = f"https://api.crossref.org/works/{doi}"
+        headers = {"User-Agent": "SensoryExtraction/1.0 (mailto:research@university.edu)"}
+        resp = requests.get(crossref_url, headers=headers, timeout=30)
+        data = resp.json()["message"]
+        for link in data.get("link", []):
+            if link.get("content-type") == "application/pdf":
+                pdf_url = link["URL"]
+                print(f"  📄 PDF available at: {pdf_url}")
+                print("  ⚠ Download PDF manually and place in data/html/ as a .pdf file")
+                break
+    except Exception:
+        pass
+
+    raise RuntimeError(
+        f"Could not fetch OUP article {doi}. Options:\n"
+        f"  1. Set HUJI_EMAIL and HUJI_PASSWORD in .env for Shibboleth login\n"
+        f"  2. Download HTML manually from browser and place in data/html/\n"
+        f"  3. Download PDF and use PDF fallback parser"
+    )
 
 
 def fetch_article(doi: str, output_dir: Path = None, study_id: str = "") -> dict:

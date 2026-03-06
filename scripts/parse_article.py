@@ -14,6 +14,7 @@ from parsers.elsevier_parser import ElsevierParser
 from parsers.springer_parser import SpringerParser
 from parsers.wiley_parser import WileyParser
 from parsers.generic_parser import GenericParser
+from parsers.oup_parser import OUPParser
 from parsers.base_parser import ParsedArticle
 
 
@@ -27,6 +28,7 @@ PARSER_MAP = {
     "elsevier": ElsevierParser,
     "springer": SpringerParser,
     "wiley": WileyParser,
+    "oup": OUPParser,
     "generic": GenericParser,
 }
 

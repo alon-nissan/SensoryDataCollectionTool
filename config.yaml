@@ -44,6 +44,11 @@ publishers:
     parser: "generic_parser"
     requires_api_key: false
     domains: []
+  oup:
+    parser: "oup_parser"
+    requires_api_key: false
+    auth_method: "shibboleth"
+    domains: ["academic.oup.com", "oup.com"]
 
 # Extraction Settings
 extraction:
