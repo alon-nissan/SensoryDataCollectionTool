@@ -39,18 +39,82 @@ PUBLISHER_TEST_URLS = {
 }
 
 
+def _launch_chrome_with_debug() -> bool:
+    """Gracefully quit any running Chrome, then relaunch with remote debugging.
+    
+    Auth cookies are stored persistently in the Chrome profile on disk,
+    so they survive a Chrome restart.
+    Returns True if the debug port opened successfully.
+    """
+    import socket
+    import subprocess
+
+    # Step 1: Gracefully quit Chrome via osascript (macOS)
+    print("  🔧 Quitting Chrome gracefully...")
+    subprocess.run(
+        ["osascript", "-e", 'quit app "Google Chrome"'],
+        capture_output=True,
+    )
+    # Wait up to 10 seconds for Chrome to fully exit
+    for i in range(20):
+        time.sleep(0.5)
+        result = subprocess.run(["pgrep", "-x", "Google Chrome"], capture_output=True, text=True)
+        if not result.stdout.strip():
+            break
+    else:
+        # Force kill if still running
+        result = subprocess.run(["pgrep", "-x", "Google Chrome"], capture_output=True, text=True)
+        for pid in result.stdout.strip().split():
+            subprocess.run(["kill", "-9", pid], capture_output=True)
+        time.sleep(2)
+
+    # Step 2: Launch Chrome with remote debugging
+    print(f"  🚀 Launching Chrome (HUJI profile) with debug port {CHROME_DEBUG_PORT}...")
+    subprocess.Popen(
+        [
+            CHROME_APP,
+            f"--remote-debugging-port={CHROME_DEBUG_PORT}",
+            f"--user-data-dir={CHROME_USER_DATA_DIR}",
+            f"--profile-directory={CHROME_PROFILE_DIR}",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-sync",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    # Step 3: Wait up to 30 seconds for the debug port to open
+    print("  ⏳ Waiting for Chrome to start...", end="", flush=True)
+    for _ in range(60):
+        time.sleep(0.5)
+        try:
+            s = socket.create_connection(("127.0.0.1", CHROME_DEBUG_PORT), timeout=1)
+            s.close()
+            print(" ready!")
+            return True
+        except (ConnectionRefusedError, OSError):
+            print(".", end="", flush=True)
+    print()
+    return False
+
+
 def export_cookies(publisher: str) -> bool:
     """Connect to Chrome, navigate to the publisher, and save cookies."""
-    session = ShibbolethSession()
-
     print(f"\n🍪 Exporting cookies for: {publisher}")
-    print("  Connecting to Chrome (HUJI profile)...")
 
+    # Launch Chrome with debug port (auth cookies survive restart)
+    if not _launch_chrome_with_debug():
+        print("  ❌ Chrome debug port never opened.")
+        print("     Try closing Chrome manually (Cmd+Q) and running again.")
+        return False
+
+    session = ShibbolethSession()
+    print("  Connecting Selenium to Chrome...")
     try:
         session._ensure_driver()
     except RuntimeError as e:
         print(f"  ❌ Could not connect to Chrome: {e}")
-        print("     Make sure Chrome is open with your HUJI profile.")
         return False
 
     test_url = PUBLISHER_TEST_URLS.get(publisher, f"https://{publisher}.com")
