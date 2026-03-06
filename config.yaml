@@ -40,6 +40,7 @@ publishers:
     parser: "wiley_parser"
     requires_api_key: true
     domains: ["wiley.com", "onlinelibrary.wiley.com"]
+    auth_method: "institutional"
   generic:
     parser: "generic_parser"
     requires_api_key: false
@@ -47,8 +48,18 @@ publishers:
   oup:
     parser: "oup_parser"
     requires_api_key: false
-    auth_method: "shibboleth"
+    auth_method: "institutional"
     domains: ["academic.oup.com", "oup.com"]
+
+# Institutional Access Settings
+institutional_access:
+  method: auto  # auto | vpn | shibboleth | manual
+  vpn_check_url: "https://academic.oup.com"
+  cookie_dir: "data/_cookies"
+  cookie_ttl_hours: 4
+  shibboleth:
+    institution: "Hebrew University of Jerusalem"
+    captcha_timeout_seconds: 120
 
 # Extraction Settings
 extraction:
