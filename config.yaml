@@ -1,0 +1,59 @@
+# Sensory Data Extraction Pipeline — Configuration
+
+# LLM Settings
+llm:
+  text_model: "claude-sonnet-4-20250514"
+  vision_model: "claude-opus-4-20250514"
+  max_tokens: 8192
+  temperature: 0.0
+  max_retries: 3
+  retry_delay_seconds: 5
+
+# File Paths
+paths:
+  data_dir: "data"
+  html_dir: "data/html"
+  figures_dir: "data/figures"
+  extractions_dir: "data/extractions"
+  gold_standard_dir: "data/gold_standard"
+  sqlite_db: "data/sensory_index.db"
+  prompts_dir: "prompts"
+  vocabulary_file: "vocabulary/attribute_map.json"
+
+# Publisher → Parser Mapping
+publishers:
+  mdpi:
+    parser: "mdpi_parser"
+    requires_api_key: false
+    domains: ["mdpi.com"]
+  elsevier:
+    parser: "elsevier_parser"
+    requires_api_key: true
+    api_base: "https://api.elsevier.com/content/article/doi/"
+    domains: ["elsevier.com", "sciencedirect.com"]
+  springer:
+    parser: "springer_parser"
+    requires_api_key: true
+    api_base: "https://api.springernature.com/openaccess/jats/"
+    domains: ["springer.com", "springernature.com", "nature.com"]
+  wiley:
+    parser: "wiley_parser"
+    requires_api_key: true
+    domains: ["wiley.com", "onlinelibrary.wiley.com"]
+  generic:
+    parser: "generic_parser"
+    requires_api_key: false
+    domains: []
+
+# Extraction Settings
+extraction:
+  confidence_threshold: 0.7
+  skip_figures: false
+  force_reextract: false
+  log_file: "extraction.log"
+
+# Figure Extraction
+figures:
+  supported_formats: ["png", "jpg", "jpeg", "gif", "svg"]
+  convert_svg_to_png: true
+  max_image_size_mb: 10

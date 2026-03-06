@@ -1,0 +1,27 @@
+# Core
+anthropic>=0.39.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.1.0
+
+# Data
+pandas>=2.2.0
+
+# Image handling
+Pillow>=10.2.0
+
+# Configuration
+python-dotenv>=1.0.0
+pyyaml>=6.0.0
+
+# CLI output
+rich>=13.7.0
+tqdm>=4.66.0
+
+# PDF fallback (optional — uncomment if needed)
+# marker-pdf>=0.3.0
+
+# Analysis notebooks
+jupyter>=1.0.0
+matplotlib>=3.8.0
+seaborn>=0.13.0

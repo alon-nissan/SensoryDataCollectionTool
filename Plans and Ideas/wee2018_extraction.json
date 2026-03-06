@@ -1,0 +1,568 @@
+{
+  "study_metadata": {
+    "study_id": "wee2018",
+    "doi": "10.3390/nu10111632",
+    "title": "A Comparison of Psychophysical Dose-Response Behaviour across 16 Sweeteners",
+    "authors": ["May Wee", "Vicki Tan", "Ciarán Forde"],
+    "year": 2018,
+    "journal": "Nutrients",
+    "country": "Singapore",
+    "institution": "Clinical Nutrition Research Centre (CNRC), A*STAR; National University of Singapore",
+    "food_category": "sweetener solutions",
+    "keywords": ["sweeteners", "sugar reduction", "psychophysical dose-response", "sweetness growth rate", "sweetness potency"],
+    "funding": "Biomedical Science Institute Strategic Positioning Fund Grant (G00067; BMSI/13-80048C-SICS)",
+    "ethics_approval": "Domain Specific Review Board, National Healthcare Group, Singapore (ref: 2017/00787)"
+  },
+
+  "experiments": [
+    {
+      "experiment_id": "wee2018_exp1",
+      "experiment_description": "Psychophysical dose-response evaluation of sweetness intensity across 16 sweeteners using gLMS",
+
+      "panel": {
+        "panel_type": "untrained",
+        "panel_size": 40,
+        "demographics": {
+          "males": 12,
+          "females": 28,
+          "age_mean": 26,
+          "age_sd": 6,
+          "age_range": [21, 50]
+        },
+        "screening_criteria": [
+          "healthy adults",
+          "normal weight (BMI 20-25 kg/m2)",
+          "non-smoker",
+          "non-denture wearer",
+          "no self-reported sinus, taste or smell dysfunction",
+          "not following special diet",
+          "no food dislikes, allergies or intolerances",
+          "not phenylketonuric, diabetic or pregnant"
+        ],
+        "prescreening": "basic taste sensitivity screening"
+      },
+
+      "session_design": {
+        "total_sessions": 5,
+        "training_sessions": 1,
+        "test_sessions": 4,
+        "session_duration": "1 hour",
+        "sweetener_sets_per_session": 4,
+        "samples_per_set": 8,
+        "design_type": "Williams Latin Square",
+        "presentation_order": "randomized within each sweetener set and balanced across participants and sessions",
+        "warmup_sample": "duplicate of sample 4/5 presented first (data excluded from analysis)",
+        "sample_volume": "15 mL",
+        "hold_time": "5 seconds in mouth before rating",
+        "expectorate": true,
+        "inter_stimulus_interval": "45 seconds mandatory",
+        "palate_cleanser": "filtered water rinse",
+        "environment": "sensory booths under red lights conforming to ISO standards for test rooms (ISO 8589)",
+        "sample_preparation": "prepared at least 24h prior using filtered water, stored at refrigeration temperature",
+        "data_collection_software": "Compusense Cloud (Compusense Inc., Guelph, ON, Canada)"
+      },
+
+      "scale": {
+        "type": "gLMS",
+        "full_name": "general Labelled Magnitude Scale",
+        "range": [0, 100],
+        "anchors": {
+          "0": "no sensation",
+          "1.5": "barely detectable",
+          "6": "weak",
+          "17": "moderate",
+          "35": "strong",
+          "52": "very strong",
+          "100": "strongest imaginable sensation"
+        },
+        "standardization_method": "weight comparison modality matching task",
+        "standardization_details": "Participants rated heaviness of weight stimuli on gLMS. Personal standardization factor = grand mean heaviness / individual average heaviness. Sweetness ratings multiplied by personal factor to correct for idiosyncratic scale use.",
+        "standardization_validation": "Significant correlation between sweetness ratings and heaviness ratings (r=0.472, p<0.05)"
+      },
+
+      "training_protocol": {
+        "description": "Familiarization with gLMS scale",
+        "steps": [
+          "Rate overall taste intensity for 7 imagined/recalled sensations (e.g., warmth of lukewarm water, pain from biting tongue)",
+          "Rate 4 basic taste samples: sweet (sucrose), salty (NaCl), sour (citric acid), bitter (caffeine)"
+        ]
+      },
+
+      "stimuli": [
+        {
+          "stimulus_id": "SUC",
+          "name": "Sucrose",
+          "category": "nutritive_saccharide",
+          "source": "SIS, NTUC Fairprice Supermarket, Singapore",
+          "properties": {"kcal_per_g": 4.0, "glycaemic_index": 60, "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0],
+          "concentration_basis": "% w/v"
+        },
+        {
+          "stimulus_id": "DEX",
+          "name": "Dextrose monohydrate",
+          "category": "nutritive_saccharide",
+          "source": "Suntop Enterprise, Singapore",
+          "properties": {"kcal_per_g": 3.4, "glycaemic_index": 100, "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "FRU",
+          "name": "Fructose",
+          "category": "nutritive_saccharide",
+          "source": "Suntop Enterprise, Singapore",
+          "properties": {"kcal_per_g": 3.7, "glycaemic_index": "19-23", "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "ALL",
+          "name": "Allulose (D-psicose)",
+          "category": "nutritive_saccharide",
+          "source": "Matsutani Co., Osaka, Japan",
+          "properties": {"kcal_per_g": 0.2, "glycaemic_index": 0, "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "PAL",
+          "name": "Palatinose (isomaltulose)",
+          "category": "nutritive_saccharide",
+          "source": "Beneo, Singapore",
+          "properties": {"kcal_per_g": 4.0, "glycaemic_index": 32, "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 6.30, 10.6, 17.7, 29.8, 50.0]
+        },
+        {
+          "stimulus_id": "MIX",
+          "name": "Sucrose-Allulose Mixture",
+          "category": "nutritive_saccharide",
+          "source": "prepared as 1:1 blend of sucrose and allulose by weight",
+          "properties": {"kcal_per_g": 2.1, "glycaemic_index": null, "provides_bulk": true, "high_potency": false, "natural": true},
+          "is_mixture": true,
+          "mixture_components": [
+            {"component": "sucrose", "ratio": "1:1 by weight"},
+            {"component": "allulose", "ratio": "1:1 by weight"}
+          ],
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "MAL",
+          "name": "Maltitol",
+          "category": "nutritive_polyol",
+          "source": "not specified",
+          "properties": {"kcal_per_g": 2.7, "glycaemic_index": 36, "provides_bulk": true, "high_potency": false, "natural": false},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "ERY",
+          "name": "Erythritol",
+          "category": "nutritive_polyol",
+          "source": "iHerb, Perris, CA, USA",
+          "properties": {"kcal_per_g": 0.2, "glycaemic_index": 0, "provides_bulk": true, "high_potency": false, "natural": true},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "MAN",
+          "name": "Mannitol",
+          "category": "nutritive_polyol",
+          "source": "Roquette, Lille, France",
+          "properties": {"kcal_per_g": 1.5, "glycaemic_index": 0, "provides_bulk": true, "high_potency": false, "natural": false},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "XYL",
+          "name": "Xylitol",
+          "category": "nutritive_polyol",
+          "source": "Roquette, Lille, France",
+          "properties": {"kcal_per_g": 2.5, "glycaemic_index": 13, "provides_bulk": true, "high_potency": false, "natural": false},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "SOR",
+          "name": "Sorbitol",
+          "category": "nutritive_polyol",
+          "source": "Suntop Enterprise, Singapore",
+          "properties": {"kcal_per_g": 2.5, "glycaemic_index": 9, "provides_bulk": true, "high_potency": false, "natural": false},
+          "concentrations_pct_wv": [0, 3.80, 5.50, 8.00, 11.7, 17.1, 25.0]
+        },
+        {
+          "stimulus_id": "ACE",
+          "name": "Acesulfame-K",
+          "category": "non_nutritive_synthetic",
+          "source": "Celanese, Irving, Texas, USA",
+          "properties": {"kcal_per_g": 0.0, "glycaemic_index": 0, "provides_bulk": false, "high_potency": true, "natural": false},
+          "concentrations_pct_wv": [0, 0.0100, 0.0219, 0.0478, 0.105, 0.229, 0.500]
+        },
+        {
+          "stimulus_id": "ASP",
+          "name": "Aspartame",
+          "category": "non_nutritive_synthetic",
+          "source": "Suntop Enterprise, Singapore",
+          "properties": {"kcal_per_g": 4.0, "glycaemic_index": 0, "provides_bulk": false, "high_potency": true, "natural": false},
+          "concentrations_pct_wv": [0, 0.0100, 0.0197, 0.0390, 0.0770, 0.152, 0.300]
+        },
+        {
+          "stimulus_id": "SCL",
+          "name": "Sucralose",
+          "category": "non_nutritive_synthetic",
+          "source": "Tate & Lyle, McIntosh, AL, USA",
+          "properties": {"kcal_per_g": 0.0, "glycaemic_index": 0, "provides_bulk": false, "high_potency": true, "natural": false},
+          "concentrations_pct_wv": [0, 0.0100, 0.0204, 0.0415, 0.0844, 0.172, 0.350]
+        },
+        {
+          "stimulus_id": "STE",
+          "name": "Stevia (Rebaudioside A)",
+          "category": "non_nutritive_natural",
+          "source": "Suntop Enterprise, Singapore (68.0% rebaudioside A)",
+          "properties": {"kcal_per_g": 0.0, "glycaemic_index": 0, "provides_bulk": false, "high_potency": true, "natural": true},
+          "concentrations_pct_wv": [0, 0.00400, 0.00830, 0.017, 0.0352, 0.0727, 0.150]
+        },
+        {
+          "stimulus_id": "LHG",
+          "name": "Luo han guo (Mogroside V)",
+          "category": "non_nutritive_natural",
+          "source": "Hunan Huacheng Biotech Inc., Hunan, China (50.6% mogroside V)",
+          "properties": {"kcal_per_g": 0.0, "glycaemic_index": 0, "provides_bulk": false, "high_potency": true, "natural": true},
+          "concentrations_pct_wv": [0, 0.0100, 0.0197, 0.0390, 0.0770, 0.152, 0.300]
+        }
+      ],
+
+      "sensory_data": {
+        "attribute_measured": "sweetness intensity",
+        "attribute_normalized": "sweetness_intensity",
+        "attribute_category": "taste",
+
+        "_note": "Mean sweetness intensity values at each concentration. Values extracted from Figure 1A/B/C dose-response curves. These are APPROXIMATE readings from the figure - no tabulated means were provided in the paper.",
+
+        "dose_response_data": [
+          {
+            "stimulus_id": "SUC",
+            "source": "Figure 1A, 1B, 1C (reference curve)",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 25},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 33}
+            ]
+          },
+          {
+            "stimulus_id": "FRU",
+            "source": "Figure 1A",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 8},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 13},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 20},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 28},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 37}
+            ]
+          },
+          {
+            "stimulus_id": "DEX",
+            "source": "Figure 1A",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 6},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 18},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 28}
+            ]
+          },
+          {
+            "stimulus_id": "ALL",
+            "source": "Figure 1A",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 9},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 16},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 25}
+            ]
+          },
+          {
+            "stimulus_id": "MIX",
+            "source": "Figure 1A",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 25},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 31}
+            ]
+          },
+          {
+            "stimulus_id": "PAL",
+            "source": "Figure 1A",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 1},
+              {"concentration_pct_wv": 6.30, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 10.6, "sweetness_intensity_gLMS": 4},
+              {"concentration_pct_wv": 17.7, "sweetness_intensity_gLMS": 8},
+              {"concentration_pct_wv": 29.8, "sweetness_intensity_gLMS": 18},
+              {"concentration_pct_wv": 50.0, "sweetness_intensity_gLMS": 28}
+            ]
+          },
+          {
+            "stimulus_id": "MAL",
+            "source": "Figure 1B",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 8},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 14},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 22},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 30}
+            ]
+          },
+          {
+            "stimulus_id": "XYL",
+            "source": "Figure 1B",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 9},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 27},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 35}
+            ]
+          },
+          {
+            "stimulus_id": "SOR",
+            "source": "Figure 1B",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 6},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 11},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 19},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 28}
+            ]
+          },
+          {
+            "stimulus_id": "MAN",
+            "source": "Figure 1B",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 25}
+            ]
+          },
+          {
+            "stimulus_id": "ERY",
+            "source": "Figure 1B",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 3.80, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 5.50, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 8.00, "sweetness_intensity_gLMS": 6},
+              {"concentration_pct_wv": 11.7, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 17.1, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 25.0, "sweetness_intensity_gLMS": 25}
+            ]
+          },
+          {
+            "stimulus_id": "SCL",
+            "source": "Figure 1C",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 0.0100, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 0.0204, "sweetness_intensity_gLMS": 7},
+              {"concentration_pct_wv": 0.0415, "sweetness_intensity_gLMS": 13},
+              {"concentration_pct_wv": 0.0844, "sweetness_intensity_gLMS": 22},
+              {"concentration_pct_wv": 0.172, "sweetness_intensity_gLMS": 30},
+              {"concentration_pct_wv": 0.350, "sweetness_intensity_gLMS": 35}
+            ]
+          },
+          {
+            "stimulus_id": "ASP",
+            "source": "Figure 1C",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 0.0100, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 0.0197, "sweetness_intensity_gLMS": 4},
+              {"concentration_pct_wv": 0.0390, "sweetness_intensity_gLMS": 9},
+              {"concentration_pct_wv": 0.0770, "sweetness_intensity_gLMS": 17},
+              {"concentration_pct_wv": 0.152, "sweetness_intensity_gLMS": 25},
+              {"concentration_pct_wv": 0.300, "sweetness_intensity_gLMS": 32}
+            ]
+          },
+          {
+            "stimulus_id": "ACE",
+            "source": "Figure 1C",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 0.0100, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 0.0219, "sweetness_intensity_gLMS": 5},
+              {"concentration_pct_wv": 0.0478, "sweetness_intensity_gLMS": 10},
+              {"concentration_pct_wv": 0.105, "sweetness_intensity_gLMS": 16},
+              {"concentration_pct_wv": 0.229, "sweetness_intensity_gLMS": 22},
+              {"concentration_pct_wv": 0.500, "sweetness_intensity_gLMS": 25}
+            ]
+          },
+          {
+            "stimulus_id": "STE",
+            "source": "Figure 1C",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 0.00400, "sweetness_intensity_gLMS": 3},
+              {"concentration_pct_wv": 0.00830, "sweetness_intensity_gLMS": 7},
+              {"concentration_pct_wv": 0.017, "sweetness_intensity_gLMS": 12},
+              {"concentration_pct_wv": 0.0352, "sweetness_intensity_gLMS": 18},
+              {"concentration_pct_wv": 0.0727, "sweetness_intensity_gLMS": 22},
+              {"concentration_pct_wv": 0.150, "sweetness_intensity_gLMS": 24}
+            ]
+          },
+          {
+            "stimulus_id": "LHG",
+            "source": "Figure 1C",
+            "extraction_confidence": "medium",
+            "data_points": [
+              {"concentration_pct_wv": 0.0100, "sweetness_intensity_gLMS": 2},
+              {"concentration_pct_wv": 0.0197, "sweetness_intensity_gLMS": 4},
+              {"concentration_pct_wv": 0.0390, "sweetness_intensity_gLMS": 8},
+              {"concentration_pct_wv": 0.0770, "sweetness_intensity_gLMS": 15},
+              {"concentration_pct_wv": 0.152, "sweetness_intensity_gLMS": 24},
+              {"concentration_pct_wv": 0.300, "sweetness_intensity_gLMS": 30}
+            ]
+          }
+        ]
+      },
+
+      "derived_metrics": {
+        "dose_response_model": {
+          "model_name": "Hill equation",
+          "equation": "R = Rmin + (Rmax - Rmin) / (1 + 10^((logEC50 - C) * HillSlope))",
+          "software": "Origin Pro 8.1 (OriginLab, Northampton, MA, USA)",
+          "Rmin_constraint": "constrained to zero",
+          "goodness_of_fit": "r2 >= 0.95 for all sweeteners",
+          "parameters_note": "Full Hill equation parameters (Rmax, EC50, HillSlope) are in supplementary Table S2 (not available in main paper)"
+        },
+
+        "sweetness_growth_rate": {
+          "model_name": "Stevens' power law",
+          "equation": "log R = n * log C + log k",
+          "description": "Slope (n) = rate of change in sweetness intensity per unit log-concentration. n>1 means intensity grows faster than concentration; n<1 means slower.",
+          "source": "Table 3",
+          "data": [
+            {"stimulus_id": "ACE", "slope_n": 0.68, "intercept_log_k": 1.65},
+            {"stimulus_id": "ALL", "slope_n": 1.41, "intercept_log_k": -0.58},
+            {"stimulus_id": "ASP", "slope_n": 0.84, "intercept_log_k": 1.90},
+            {"stimulus_id": "DEX", "slope_n": 1.40, "intercept_log_k": -0.63},
+            {"stimulus_id": "ERY", "slope_n": 1.45, "intercept_log_k": -0.60},
+            {"stimulus_id": "FRU", "slope_n": 1.08, "intercept_log_k": 0.04},
+            {"stimulus_id": "LHG", "slope_n": 0.70, "intercept_log_k": 1.78},
+            {"stimulus_id": "MAL", "slope_n": 1.42, "intercept_log_k": -0.51},
+            {"stimulus_id": "MAN", "slope_n": 1.38, "intercept_log_k": -0.59},
+            {"stimulus_id": "MIX", "slope_n": 1.24, "intercept_log_k": -0.23},
+            {"stimulus_id": "PAL", "slope_n": 1.10, "intercept_log_k": -0.51},
+            {"stimulus_id": "SOR", "slope_n": 1.46, "intercept_log_k": -0.63},
+            {"stimulus_id": "STE", "slope_n": 0.71, "intercept_log_k": 1.93},
+            {"stimulus_id": "SCL", "slope_n": 0.65, "intercept_log_k": 1.89},
+            {"stimulus_id": "SUC", "slope_n": 1.31, "intercept_log_k": -0.33},
+            {"stimulus_id": "XYL", "slope_n": 1.30, "intercept_log_k": -0.29}
+          ]
+        },
+
+        "sweetness_potency": {
+          "definition": "Ratio of concentration of sucrose to concentration of sweetener at equivalent sweetness intensity",
+          "source": "Table 4",
+          "reference": "sucrose",
+          "data": [
+            {"stimulus_id": "ACE", "equi_sweet_conc_5pct": 0.0293, "equi_sweet_conc_10pct": 0.0832, "equi_sweet_conc_15pct": 0.170, "potency_5pct": 171, "potency_10pct": 120, "potency_15pct": 88.1},
+            {"stimulus_id": "ALL", "equi_sweet_conc_5pct": 7.1, "equi_sweet_conc_10pct": 13.3, "equi_sweet_conc_15pct": 18.9, "potency_5pct": 0.71, "potency_10pct": 0.75, "potency_15pct": 0.80},
+            {"stimulus_id": "ASP", "equi_sweet_conc_5pct": 0.0290, "equi_sweet_conc_10pct": 0.0827, "equi_sweet_conc_15pct": 0.134, "potency_5pct": 173, "potency_10pct": 121, "potency_15pct": 112},
+            {"stimulus_id": "DEX", "equi_sweet_conc_5pct": 7.8, "equi_sweet_conc_10pct": 15.5, "equi_sweet_conc_15pct": 21.6, "potency_5pct": 0.64, "potency_10pct": 0.64, "potency_15pct": 0.69},
+            {"stimulus_id": "ERY", "equi_sweet_conc_5pct": 6.9, "equi_sweet_conc_10pct": 13.3, "equi_sweet_conc_15pct": 17.8, "potency_5pct": 0.72, "potency_10pct": 0.75, "potency_15pct": 0.84},
+            {"stimulus_id": "FRU", "equi_sweet_conc_5pct": 4.0, "equi_sweet_conc_10pct": 7.4, "equi_sweet_conc_15pct": 11.2, "potency_5pct": 1.25, "potency_10pct": 1.36, "potency_15pct": 1.34},
+            {"stimulus_id": "LHG", "equi_sweet_conc_5pct": 0.0191, "equi_sweet_conc_10pct": 0.0694, "equi_sweet_conc_15pct": 0.141, "potency_5pct": 262, "potency_10pct": 144, "potency_15pct": 106},
+            {"stimulus_id": "MAL", "equi_sweet_conc_5pct": 5.6, "equi_sweet_conc_10pct": 11.2, "equi_sweet_conc_15pct": 15.8, "potency_5pct": 0.93, "potency_10pct": 0.89, "potency_15pct": 0.95},
+            {"stimulus_id": "MAN", "equi_sweet_conc_5pct": 8.6, "equi_sweet_conc_10pct": 14.6, "equi_sweet_conc_15pct": 18.6, "potency_5pct": 0.58, "potency_10pct": 0.68, "potency_15pct": 0.81},
+            {"stimulus_id": "MIX", "equi_sweet_conc_5pct": 5.0, "equi_sweet_conc_10pct": 10.7, "equi_sweet_conc_15pct": 14.3, "potency_5pct": 0.99, "potency_10pct": 0.93, "potency_15pct": 1.05},
+            {"stimulus_id": "PAL", "equi_sweet_conc_5pct": 12.7, "equi_sweet_conc_10pct": 26.4, "equi_sweet_conc_15pct": 34.6, "potency_5pct": 0.39, "potency_10pct": 0.38, "potency_15pct": 0.43},
+            {"stimulus_id": "SOR", "equi_sweet_conc_5pct": 6.3, "equi_sweet_conc_10pct": 13.7, "equi_sweet_conc_15pct": 17.9, "potency_5pct": 0.80, "potency_10pct": 0.72, "potency_15pct": 0.83},
+            {"stimulus_id": "STE", "equi_sweet_conc_5pct": 0.0144, "equi_sweet_conc_10pct": 0.0395, "equi_sweet_conc_15pct": 0.0828, "potency_5pct": 348, "potency_10pct": 253, "potency_15pct": 181},
+            {"stimulus_id": "SCL", "equi_sweet_conc_5pct": 0.0096, "equi_sweet_conc_10pct": 0.0387, "equi_sweet_conc_15pct": 0.0748, "potency_5pct": 521, "potency_10pct": 258, "potency_15pct": 201},
+            {"stimulus_id": "SUC", "equi_sweet_conc_5pct": 5, "equi_sweet_conc_10pct": 10, "equi_sweet_conc_15pct": 15, "potency_5pct": 1, "potency_10pct": 1, "potency_15pct": 1},
+            {"stimulus_id": "XYL", "equi_sweet_conc_5pct": 5.1, "equi_sweet_conc_10pct": 9.9, "equi_sweet_conc_15pct": 13.3, "potency_5pct": 0.98, "potency_10pct": 1.01, "potency_15pct": 1.12}
+          ]
+        }
+      },
+
+      "statistical_outputs": {
+        "source": "inline text, Section 3 Results",
+        "anova_results": [
+          {
+            "test": "repeated-measures ANOVA",
+            "factor": "concentration",
+            "description": "effect of concentration on sweetness intensity",
+            "F_statistic": 142.12,
+            "df_between": 5,
+            "df_within": 39,
+            "p_value": "<0.001"
+          },
+          {
+            "test": "repeated-measures ANOVA",
+            "factor": "sweetener type",
+            "description": "effect of sweetener type on sweetness intensity",
+            "F_statistic": 18.05,
+            "df_between": 15,
+            "df_within": 39,
+            "p_value": "<0.001"
+          },
+          {
+            "test": "repeated-measures ANOVA",
+            "factor": "concentration × sweetener type interaction",
+            "description": "interaction between concentration and sweetener type",
+            "F_statistic": 4.20,
+            "df_between": 75,
+            "df_within": 39,
+            "p_value": "<0.001"
+          }
+        ],
+        "additional_tests": [
+          "two-way ANOVA to confirm absence of first-order and carryover effects",
+          "post hoc pairwise comparisons with Bonferroni corrections"
+        ],
+        "software": "IBM SPSS Statistics for Windows, Version 22.0",
+        "alpha": 0.05
+      },
+
+      "figure_inventory": [
+        {"figure_id": "Figure 1A", "type": "dose_response_curve", "description": "Sweetness intensity vs concentration for saccharide sweeteners (semi-log x-axis)", "data_extracted": true},
+        {"figure_id": "Figure 1B", "type": "dose_response_curve", "description": "Sweetness intensity vs concentration for polyol sweeteners (semi-log x-axis)", "data_extracted": true},
+        {"figure_id": "Figure 1C", "type": "dose_response_curve", "description": "Sweetness intensity vs concentration for non-nutritive sweeteners (dual x-axes)", "data_extracted": true},
+        {"figure_id": "Figure 2", "type": "log_log_scatter", "description": "Log sweetness intensity vs log concentration for all 16 sweeteners", "data_extracted": false, "note": "Redundant with Table 3 (slope/intercept values)"},
+        {"figure_id": "Figure 3", "type": "line_chart", "description": "Energy content (kcal/100mL) vs sweetness intensity for nutritive sweeteners", "data_extracted": false, "note": "Derived values, calculable from other extracted data"}
+      ]
+    }
+  ],
+
+  "extraction_metadata": {
+    "extracted_by": "LLM (Claude)",
+    "extraction_date": "2026-03-05",
+    "validation_status": "pending_manual_review",
+    "notes": [
+      "Dose-response data points in sensory_data are APPROXIMATE readings from Figure 1 curves. No tabular means were provided.",
+      "Hill equation fitting parameters (Rmax, EC50, HillSlope) are in supplementary Table S2 - not available in main paper.",
+      "Concentration data in mmol/L available in supplementary Table S1 - not extracted here.",
+      "No error bars (SD/SE) were reported for the dose-response curves.",
+      "Individual panelist data not available."
+    ]
+  }
+}

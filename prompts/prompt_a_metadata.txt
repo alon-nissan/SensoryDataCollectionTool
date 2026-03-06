@@ -1,0 +1,53 @@
+You are a scientific data extraction specialist. Your task is to extract study-level metadata from a sensory science research paper and output it as a JSON object.
+
+## Instructions
+
+Read the article text below and extract the `study_metadata` section. Be precise — extract only what is explicitly stated in the paper. If a field is not mentioned, set it to null.
+
+## Output Format
+
+Return ONLY a JSON object with this exact structure (no additional text):
+
+```json
+{
+  "study_metadata": {
+    "study_id": "<first_author_surname><year> (e.g., wee2018)",
+    "doi": "<DOI string>",
+    "title": "<full paper title>",
+    "authors": ["<First Last>", ...],
+    "year": <integer>,
+    "journal": "<journal name>",
+    "volume": <integer or null>,
+    "issue": <integer or null>,
+    "pages": "<page range string or null>",
+    "country": "<country where study was conducted>",
+    "institution": "<institution(s)>",
+    "food_category": "<brief category, e.g., 'sweetener solutions', 'dairy products'>",
+    "keywords": ["<keyword>", ...],
+    "funding": "<funding source and grant number, or null>",
+    "ethics_approval": "<ethics committee + reference number, or null>"
+  }
+}
+```
+
+## Few-Shot Example
+
+Here is an example of correct output for a sweetener dose-response study:
+
+{gold_standard_wee}
+
+And here is an example for a taste interaction study:
+
+{gold_standard_benabu}
+
+## Notes
+
+- For `study_id`, use lowercase first author surname + year (e.g., "wee2018")
+- For `country`, infer from institutional affiliations if not explicitly stated
+- For `food_category`, use a brief descriptive phrase
+- For `keywords`, use the paper's own keywords if listed; otherwise extract key terms
+- If the paper mentions multiple institutions, list them all separated by semicolons
+
+## Article Text
+
+{article_text}

@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "description": "Mapping from raw sensory attribute terms to normalized controlled vocabulary",
+  "categories": {
+    "taste": ["sweetness", "bitterness", "saltiness", "sourness", "umami"],
+    "mouthfeel": ["astringency", "cooling", "burning", "tingling", "viscosity", "grittiness"],
+    "aroma": ["fruity", "floral", "nutty", "earthy", "herbal", "citrus", "vanilla", "caramel"],
+    "texture": ["firmness", "crunchiness", "smoothness", "creaminess", "chewiness"],
+    "appearance": ["color_intensity", "turbidity", "glossiness"],
+    "hedonic": ["overall_liking", "sweetness_liking", "flavor_liking", "texture_liking"]
+  },
+  "mappings": {
+    "sweet": "sweetness",
+    "sweet taste": "sweetness",
+    "sweetness intensity": "sweetness",
+    "perceived sweetness": "sweetness",
+    "bitter": "bitterness",
+    "bitter taste": "bitterness",
+    "bitterness intensity": "bitterness",
+    "salty": "saltiness",
+    "salt taste": "saltiness",
+    "saltiness intensity": "saltiness",
+    "sour": "sourness",
+    "sour taste": "sourness",
+    "sourness intensity": "sourness",
+    "umami": "umami",
+    "umami taste": "umami",
+    "savory": "umami",
+    "astringent": "astringency",
+    "astringency": "astringency",
+    "overall liking": "overall_liking",
+    "overall acceptability": "overall_liking",
+    "hedonic score": "overall_liking"
+  },
+  "unmapped": []
+}

@@ -1,0 +1,467 @@
+{
+  "study_metadata": {
+    "study_id": "benabu2018",
+    "doi": "10.1016/j.foodchem.2018.01.175",
+    "title": "The taste of KCl – What a difference a sugar makes",
+    "authors": ["Natalie Ben Abu", "Daniel Harries", "Hillary Voet", "Masha Y. Niv"],
+    "year": 2018,
+    "journal": "Food Chemistry",
+    "volume": 255,
+    "pages": "165-173",
+    "country": "Israel",
+    "institution": "The Hebrew University (Institute of Biochemistry/Food Science/Nutrition; Institute of Chemistry; Fritz Haber Research Center)",
+    "food_category": "salt substitute solutions / taste interaction",
+    "keywords": ["Bitterness", "Chemical activity", "Sensory integration", "Potassium chloride", "Taste masking", "Taste enhancement", "Trehalose", "Sucrose", "Salt"],
+    "funding": "Israel Science Foundation grant No. 494/16; ISF-NSFC joint research program (grant No. 2463/16)",
+    "ethics_approval": "Committee for the Use of Human Subjects in Research, The Hebrew University"
+  },
+
+  "experiments": [
+    {
+      "experiment_id": "benabu2018_exp1",
+      "experiment_description": "Effect of sugar additions on taste profile of 0.05M KCl. Within-subjects design with sucrose and trehalose at multiple concentrations.",
+
+      "panel": {
+        "panel_type": "untrained",
+        "panel_size": 30,
+        "demographics": {
+          "males": 16,
+          "females": 14,
+          "age_mean": 26.85,
+          "age_sd": 4.3,
+          "age_range": [22, 34.5]
+        },
+        "screening_criteria": [
+          "no renal diseases",
+          "no diabetes",
+          "not pregnant",
+          "no food intolerance or allergies",
+          "no tobacco use",
+          "no medication that would alter taste or smell"
+        ],
+        "recruitment": "online advertisements and flyers at Faculty of Agriculture, Food and Environment, Hebrew University"
+      },
+
+      "session_design": {
+        "total_sessions": 2,
+        "session_A": {
+          "name": "baseline of sugars",
+          "samples": ["water", "0.05M sucrose", "0.1M sucrose", "0.2M sucrose", "0.1M trehalose", "0.2M trehalose", "0.8M trehalose"],
+          "purpose": "Establish baseline sweetness of pure sugars"
+        },
+        "session_B": {
+          "name": "KCl + sugar mixtures",
+          "samples": ["0.05M KCl", "0.05M KCl + 0.05M sucrose", "0.05M KCl + 0.1M sucrose", "0.05M KCl + 0.2M sucrose", "0.05M KCl + 0.1M trehalose", "0.05M KCl + 0.2M trehalose", "0.05M KCl + 0.8M trehalose"],
+          "purpose": "Measure effect of sugar addition on KCl taste"
+        },
+        "break_between_sessions": "10 minutes",
+        "blinding": "participants unaware of specific purpose of each session; sessions labeled A and B",
+        "presentation_order": "randomized within each session",
+        "sample_coding": "3-digit random numbers",
+        "sample_volume_ml": 7,
+        "cup_type": "30 mL polyethylene cups",
+        "hold_time": "gargle ~5 seconds",
+        "expectorate": true,
+        "inter_stimulus_interval": "30 seconds",
+        "palate_cleanser": "water rinse after each solution",
+        "serving_temperature": "room temperature",
+        "instruction_to_not_eat": "1 hour prior to tasting, nothing except water",
+        "environment": "individual computer booths, minimum distance 2.4m apart",
+        "data_collection_software": "Compusense Cloud",
+        "compensation": "show-up fee of 10 shekels + time-based; total 30-50 shekels (8.62-14.36 USD)"
+      },
+
+      "scale": {
+        "type": "9-point Likert",
+        "range": [1, 9],
+        "anchors": {
+          "1": "no sensation",
+          "9": "extremely strong sensation"
+        },
+        "note": "Chosen over LMS due to participants' inexperience; LMS was used in preliminary tests but led to high variability"
+      },
+
+      "stimuli": [
+        {
+          "stimulus_id": "water",
+          "name": "Deionized Millipore-filtered water",
+          "type": "control",
+          "composition": {}
+        },
+        {
+          "stimulus_id": "KCl_0.05M",
+          "name": "0.05M KCl",
+          "type": "control",
+          "composition": {"KCl_M": 0.05},
+          "source": "SPECTRUM via Ofer Chemical Laboratory (catalog: P-1250)",
+          "preparation_note": "powder dried under vacuum before dissolving in deionized water"
+        },
+        {"stimulus_id": "suc_0.05M", "name": "0.05M Sucrose", "type": "pure_sugar", "composition": {"sucrose_M": 0.05}, "source": "local supermarket (table sugar)"},
+        {"stimulus_id": "suc_0.1M", "name": "0.1M Sucrose", "type": "pure_sugar", "composition": {"sucrose_M": 0.1}},
+        {"stimulus_id": "suc_0.2M", "name": "0.2M Sucrose", "type": "pure_sugar", "composition": {"sucrose_M": 0.2}},
+        {"stimulus_id": "tre_0.1M", "name": "0.1M Trehalose", "type": "pure_sugar", "composition": {"trehalose_M": 0.1}, "source": "gift of Hayashibara Co., Okayama, Japan; Mw=378.33 g/mol"},
+        {"stimulus_id": "tre_0.2M", "name": "0.2M Trehalose", "type": "pure_sugar", "composition": {"trehalose_M": 0.2}},
+        {"stimulus_id": "tre_0.8M", "name": "0.8M Trehalose", "type": "pure_sugar", "composition": {"trehalose_M": 0.8}},
+        {
+          "stimulus_id": "KCl0.05_suc0.05",
+          "name": "0.05M KCl + 0.05M Sucrose",
+          "type": "mixture",
+          "composition": {"KCl_M": 0.05, "sucrose_M": 0.05}
+        },
+        {"stimulus_id": "KCl0.05_suc0.1", "name": "0.05M KCl + 0.1M Sucrose", "type": "mixture", "composition": {"KCl_M": 0.05, "sucrose_M": 0.1}},
+        {"stimulus_id": "KCl0.05_suc0.2", "name": "0.05M KCl + 0.2M Sucrose", "type": "mixture", "composition": {"KCl_M": 0.05, "sucrose_M": 0.2}},
+        {"stimulus_id": "KCl0.05_tre0.1", "name": "0.05M KCl + 0.1M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.05, "trehalose_M": 0.1}},
+        {"stimulus_id": "KCl0.05_tre0.2", "name": "0.05M KCl + 0.2M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.05, "trehalose_M": 0.2}},
+        {"stimulus_id": "KCl0.05_tre0.8", "name": "0.05M KCl + 0.8M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.05, "trehalose_M": 0.8}}
+      ],
+
+      "sensory_data": {
+        "attributes_measured": ["bitterness-metallic", "saltiness", "sweetness"],
+        "attributes_normalized": ["bitterness_metallic", "saltiness", "sweetness"],
+        "attribute_categories": ["taste", "taste", "taste"],
+
+        "raw_scores": {
+          "source": "inline text, Section 3.2",
+          "scale": "9-point Likert (1-9)",
+          "data": [
+            {"stimulus_id": "KCl_0.05M", "bitterness_metallic": {"mean": 4.97, "se": 0.41}, "saltiness": {"mean": 3.3, "se": 0.41}, "sweetness": {"mean": 0.84, "se": 0.22}},
+            {"stimulus_id": "water", "sweetness": {"mean": 1.4, "se": 1.16}, "_note": "sweetness only reported for water"}
+          ],
+          "_note": "Raw mean scores for individual KCl+sugar mixtures are shown in Figure 2 radar plots but exact values are not tabulated. The scores reported above are for pure KCl only."
+        },
+
+        "relative_perceptions": {
+          "description": "Individual-level ratios: mixture score / control score * 100. For bitterness-metallic and saltiness, control = pure KCl. For sweetness, control = pure sugar.",
+          "equations": {
+            "relative_bitterness_metallic": "(bitterness score of KCl+sugar mixture / bitterness score of KCl control) * 100",
+            "relative_saltiness": "(saltiness score of KCl+sugar mixture / saltiness score of KCl control) * 100",
+            "relative_sweetness": "(sweetness score of KCl+sugar mixture / sweetness score of sugar stimuli) * 100"
+          },
+          "source": "Figure 4 (a, b, c) and inline text Section 3.6.1",
+          "KCl_concentration": "0.05M",
+          "data": [
+            {
+              "sugar_treatment": "0.05M sucrose",
+              "relative_bitterness_metallic": {"mean_pct": null, "se": null, "significant_vs_control": false, "_note": "not significantly different from 100%"},
+              "relative_saltiness": {"mean_pct": null, "se": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": null, "se": null, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.1M sucrose",
+              "relative_bitterness_metallic": {"mean_pct": null, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"mean_pct": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": null, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.2M sucrose",
+              "relative_bitterness_metallic": {"mean_pct": null, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"mean_pct": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": null, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.1M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": null, "significant_vs_control": false, "_note": "not significantly different from 100%"},
+              "relative_saltiness": {"mean_pct": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": 60.65, "se": 6.4, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.2M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": 83.10, "se": 4.93, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"mean_pct": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": null, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.8M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": 48.85, "se": 4.93, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"mean_pct": null, "significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": 83.07, "se": 6.14, "significant_vs_control": true, "direction": "decreased"}
+            }
+          ]
+        },
+
+        "sweetness_of_pure_sugars": {
+          "source": "Figure 3 (box plots) and inline text Section 3.3",
+          "note": "Sweetness distribution data from Session A. Only summary statistics available.",
+          "data": [
+            {"stimulus_id": "suc_0.05M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~3"},
+            {"stimulus_id": "suc_0.1M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~4.5"},
+            {"stimulus_id": "suc_0.2M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~6"},
+            {"stimulus_id": "tre_0.1M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~2.5"},
+            {"stimulus_id": "tre_0.2M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~3.5"},
+            {"stimulus_id": "tre_0.8M", "sweetness_mean": null, "_note": "visible in Figure 3, approx ~5"}
+          ],
+          "pairwise_comparisons": [
+            {"comparison": "suc_0.05M vs tre_0.1M", "mean_difference": 0.67, "CI_95": [0.14, 1.2]},
+            {"comparison": "suc_0.1M vs tre_0.2M", "mean_difference": 1.14, "CI_95": [0.62, 1.67]},
+            {"comparison": "suc_0.2M vs tre_0.8M", "mean_difference": 1.14, "CI_95": [0.61, 1.67]}
+          ]
+        }
+      },
+
+      "statistical_outputs": {
+        "source": "inline text Sections 3.4 and 3.6.1; supplementary Table S1",
+        "overall_anova": [
+          {"factor": "sugar addition", "dependent_var": "bitterness-metallic", "F": 21.26, "df_num": 6, "df_den": 30, "p": "<0.0001"},
+          {"factor": "sugar addition", "dependent_var": "sweetness", "F": 79.54, "df_num": 6, "df_den": 30, "p": "<0.0001"},
+          {"factor": "sugar addition", "dependent_var": "saltiness", "F": 1.99, "df_num": 6, "df_den": 30, "p": "0.0693", "significant": false}
+        ],
+        "treatment_type_effect_on_relative_perceptions": {
+          "bitterness_metallic": {"significant": true, "p": "<0.05"},
+          "saltiness": {"significant": false},
+          "sweetness": {"significant": false}
+        },
+        "post_hoc_method": "Tukey-Kramer (alpha=0.05)",
+        "software": "JMP Pro 13 (SAS)",
+        "alpha": 0.05,
+        "gender_effect": "not significant (p > 0.05)"
+      }
+    },
+
+    {
+      "experiment_id": "benabu2018_exp2",
+      "experiment_description": "Effect of sugar additions on taste profile of 0.1M KCl. Same design as Experiment I but with higher KCl concentration.",
+
+      "panel": {
+        "panel_type": "untrained",
+        "panel_size": 25,
+        "demographics": {
+          "males": 6,
+          "females": 19,
+          "age_mean": 27.74,
+          "age_sd": 5.1,
+          "age_range": [22, 42]
+        },
+        "screening_criteria": "same as Experiment I",
+        "note": "Different participants than Experiment I"
+      },
+
+      "session_design": {
+        "description": "Identical to Experiment I except KCl control is 0.1M instead of 0.05M",
+        "session_A": {
+          "name": "baseline of sugars",
+          "samples": "same as Experiment I"
+        },
+        "session_B": {
+          "samples": ["0.1M KCl", "0.1M KCl + 0.05M sucrose", "0.1M KCl + 0.1M sucrose", "0.1M KCl + 0.2M sucrose", "0.1M KCl + 0.1M trehalose", "0.1M KCl + 0.2M trehalose", "0.1M KCl + 0.8M trehalose"]
+        },
+        "_inherited_from": "benabu2018_exp1"
+      },
+
+      "scale": {
+        "_inherited_from": "benabu2018_exp1"
+      },
+
+      "stimuli": [
+        {
+          "stimulus_id": "KCl_0.1M",
+          "name": "0.1M KCl",
+          "type": "control",
+          "composition": {"KCl_M": 0.1}
+        },
+        {"stimulus_id": "KCl0.1_suc0.05", "name": "0.1M KCl + 0.05M Sucrose", "type": "mixture", "composition": {"KCl_M": 0.1, "sucrose_M": 0.05}},
+        {"stimulus_id": "KCl0.1_suc0.1", "name": "0.1M KCl + 0.1M Sucrose", "type": "mixture", "composition": {"KCl_M": 0.1, "sucrose_M": 0.1}},
+        {"stimulus_id": "KCl0.1_suc0.2", "name": "0.1M KCl + 0.2M Sucrose", "type": "mixture", "composition": {"KCl_M": 0.1, "sucrose_M": 0.2}},
+        {"stimulus_id": "KCl0.1_tre0.1", "name": "0.1M KCl + 0.1M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.1, "trehalose_M": 0.1}},
+        {"stimulus_id": "KCl0.1_tre0.2", "name": "0.1M KCl + 0.2M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.1, "trehalose_M": 0.2}},
+        {"stimulus_id": "KCl0.1_tre0.8", "name": "0.1M KCl + 0.8M Trehalose", "type": "mixture", "composition": {"KCl_M": 0.1, "trehalose_M": 0.8}}
+      ],
+
+      "sensory_data": {
+        "raw_scores": {
+          "data": [
+            {"stimulus_id": "KCl_0.1M", "bitterness_metallic": {"mean": 5.2, "se": 0.53}, "saltiness": {"mean": 3.8, "se": 0.53}, "sweetness": {"mean": 1.1, "se": 0.23}}
+          ]
+        },
+
+        "relative_perceptions": {
+          "KCl_concentration": "0.1M",
+          "source": "Figure 4 (d, e, f) and inline text Section 3.6.1",
+          "data": [
+            {
+              "sugar_treatment": "0.05M sucrose",
+              "relative_bitterness_metallic": {"significant_vs_control": false},
+              "relative_saltiness": {"mean_pct": 125.95, "se": 9.75, "significant_vs_control": true, "direction": "enhanced"},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.1M sucrose",
+              "relative_bitterness_metallic": {"significant_vs_control": false},
+              "relative_saltiness": {"significant_vs_control": false},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.2M sucrose",
+              "relative_bitterness_metallic": {"mean_pct": 78.02, "se": 8.47, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"significant_vs_control": false},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.1M trehalose",
+              "relative_bitterness_metallic": {"significant_vs_control": false},
+              "relative_saltiness": {"mean_pct": 124.26, "se": 9.75, "significant_vs_control": true, "direction": "enhanced"},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.2M trehalose",
+              "relative_bitterness_metallic": {"significant_vs_control": false},
+              "relative_saltiness": {"mean_pct": 131.24, "se": 9.75, "significant_vs_control": true, "direction": "enhanced"},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "sugar_treatment": "0.8M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": 62.23, "se": 8.47, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"significant_vs_control": false},
+              "relative_sweetness": {"significant_vs_control": true, "direction": "decreased"}
+            }
+          ]
+        }
+      },
+
+      "statistical_outputs": {
+        "overall_anova": [
+          {"factor": "sugar addition", "dependent_var": "bitterness-metallic", "F": 8.13, "df_num": 6, "df_den": 25, "p": "<0.0001"},
+          {"factor": "sugar addition", "dependent_var": "saltiness", "F": 4.76, "df_num": 6, "df_den": 25, "p": "<0.0002"},
+          {"factor": "sugar addition", "dependent_var": "sweetness", "F": 45.82, "df_num": 6, "df_den": 25, "p": "<0.0001"}
+        ],
+        "treatment_type_effect_on_relative_perceptions": {
+          "bitterness_metallic": {"significant": true, "p": "<0.05"},
+          "saltiness": {"significant": true, "p": "<0.05"},
+          "sweetness": {"significant": false}
+        },
+        "gender_effect": "not significant (p > 0.05)"
+      }
+    },
+
+    {
+      "experiment_id": "benabu2018_exp3",
+      "experiment_description": "Validation experiment: Effect of 0.2M trehalose on both 0.05M and 0.1M KCl. Reduced design with new participants. Counter-balanced sessions.",
+
+      "panel": {
+        "panel_type": "untrained",
+        "panel_size": 23,
+        "demographics": {
+          "males": 8,
+          "females": 15,
+          "age_mean": 28.18,
+          "age_sd": 5.22,
+          "age_range": [21, 43]
+        },
+        "note": "None of the subjects took part in the previous experiments"
+      },
+
+      "session_design": {
+        "total_sessions": 2,
+        "counter_balanced": true,
+        "session_A": {
+          "samples": ["water", "0.05M KCl", "0.2M trehalose", "0.05M KCl + 0.2M trehalose"]
+        },
+        "session_B": {
+          "samples": ["water", "0.1M KCl", "0.2M trehalose", "0.1M KCl + 0.2M trehalose"]
+        },
+        "break_between_sessions": "10 minutes",
+        "presentation_order": "randomized"
+      },
+
+      "stimuli": [
+        {"stimulus_id": "KCl_0.05M", "type": "control", "composition": {"KCl_M": 0.05}},
+        {"stimulus_id": "KCl_0.1M", "type": "control", "composition": {"KCl_M": 0.1}},
+        {"stimulus_id": "tre_0.2M", "type": "pure_sugar", "composition": {"trehalose_M": 0.2}},
+        {"stimulus_id": "KCl0.05_tre0.2", "type": "mixture", "composition": {"KCl_M": 0.05, "trehalose_M": 0.2}},
+        {"stimulus_id": "KCl0.1_tre0.2", "type": "mixture", "composition": {"KCl_M": 0.1, "trehalose_M": 0.2}}
+      ],
+
+      "sensory_data": {
+        "relative_perceptions": {
+          "source": "Figure 5 (a, b, c) and inline text Section 3.6.1",
+          "data": [
+            {
+              "mixture": "0.05M KCl + 0.2M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": 72.3, "se": 9.18, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": 77.12, "se": 6.81, "significant_vs_control": true, "direction": "decreased"}
+            },
+            {
+              "mixture": "0.1M KCl + 0.2M trehalose",
+              "relative_bitterness_metallic": {"mean_pct": 76.62, "se": 9.18, "significant_vs_control": true, "direction": "decreased"},
+              "relative_saltiness": {"significant_vs_control": false},
+              "relative_sweetness": {"mean_pct": 78.7, "se": 6.81, "significant_vs_control": true, "direction": "decreased"}
+            }
+          ]
+        }
+      },
+
+      "statistical_outputs": {
+        "gender_effect": "not significant (p > 0.05)"
+      }
+    }
+  ],
+
+  "cross_experiment_data": {
+    "sweetness_level_analysis": {
+      "description": "Perception changes analyzed by level of perceived sweetness (1=barely detectable to 5=high) rather than by sugar type-concentration treatment. Sweetness levels derived from quantile calculations on sweetness distribution.",
+      "source": "Figure 6 (a-f) and inline text Section 3.6.2",
+
+      "KCl_0.05M": {
+        "sweetness_factor_significant_for": {
+          "bitterness_metallic": true,
+          "saltiness": false,
+          "sweetness": false
+        },
+        "bitterness_metallic_range": {"min_mean_pct": 45.6, "min_se": 4.26, "max_mean_pct": 104.97, "max_se": 5.6},
+        "sweetness_range": {"min_mean_pct": 56.11, "min_se": 7.0, "max_mean_pct": 89.91, "max_se": 7.0},
+        "notes": [
+          "Bitterness-metallic significantly reduced at all sweetness levels except level 1 (lowest)",
+          "Sweetness significantly reduced at all sweetness levels except level 1 (lowest)",
+          "Saltiness did not differ from pure KCl"
+        ]
+      },
+
+      "KCl_0.1M": {
+        "sweetness_factor_significant_for": {
+          "bitterness_metallic": true,
+          "saltiness": true,
+          "sweetness": false
+        },
+        "notes": [
+          "Sweetness levels 2 and 3 had no significant effect on bitterness-metallic (harder to mask more bitter 0.1M KCl)",
+          "Significant saltiness enhancement at lowest sweetness level (level 1)",
+          "For first three sweetness levels, trehalose was main cause of saltiness enhancement"
+        ]
+      }
+    }
+  },
+
+  "figure_inventory": [
+    {"figure_id": "Figure 1", "type": "experimental_design_schematic", "description": "Schematic of Experiments I and II showing sessions, samples, and measures", "data_extracted": false, "value": "workflow_metadata"},
+    {"figure_id": "Figure 2a", "type": "radar_plot", "description": "0.05M KCl + sucrose taste profile (bitterness-metallic, saltiness, sweetness)", "data_extracted": false, "note": "Raw score values visible but approximate; no exact numbers tabulated"},
+    {"figure_id": "Figure 2b", "type": "radar_plot", "description": "0.1M KCl + sucrose taste profile", "data_extracted": false},
+    {"figure_id": "Figure 2c", "type": "radar_plot", "description": "0.05M KCl + trehalose taste profile", "data_extracted": false},
+    {"figure_id": "Figure 2d", "type": "radar_plot", "description": "0.1M KCl + trehalose taste profile", "data_extracted": false},
+    {"figure_id": "Figure 3", "type": "box_plot", "description": "Sweetness distribution for 6 pure sugar solutions (quantile box plots)", "data_extracted": false, "note": "Shows median, mean, quartiles, min/max for each sugar"},
+    {"figure_id": "Figure 4a-f", "type": "bar_chart_with_CI", "description": "Relative perceptions (%) for 6 sugar treatments at each KCl concentration with 95% CI", "data_extracted": true, "note": "Core results - some exact values reported in text"},
+    {"figure_id": "Figure 5a-c", "type": "bar_chart_with_CI", "description": "Experiment III: 0.2M trehalose effect on KCl perceptions", "data_extracted": true},
+    {"figure_id": "Figure 6a-f", "type": "bar_chart_with_CI", "description": "Relative perceptions across sweetness levels (1-5)", "data_extracted": true, "note": "Range values reported in text"}
+  ],
+
+  "extraction_metadata": {
+    "extracted_by": "LLM (Claude)",
+    "extraction_date": "2026-03-05",
+    "validation_status": "pending_manual_review",
+    "notes": [
+      "Many numerical values are NULL because they were only presented in figures (bar charts, radar plots) without being tabulated or stated in text.",
+      "Figures 2a-d (radar plots) contain raw score data that would need figure extraction to obtain exact values.",
+      "Figure 3 box plots contain sweetness distribution data (median, quartiles, min, max) that would need figure extraction.",
+      "Figures 4, 5, 6 bar charts contain relative perception values - some were stated in text and extracted, many were not.",
+      "Full statistical results for relative perceptions are in supplementary Table S2 (not available in main paper).",
+      "Figure 6 data broken down by individual sugar type is in supplementary Figure S1 (not available in main paper).",
+      "Significance asterisks are visible on figures but exact p-values for individual comparisons are not always stated.",
+      "The paper uses significance at p<0.05 determined by whether 95% CI excludes 100% (for relative values)."
+    ],
+    "data_gaps": [
+      "No tabulated raw scores for any KCl+sugar mixtures - only available in radar plots (Figure 2)",
+      "No tabulated sweetness scores for pure sugars - only in box plots (Figure 3) and supplementary",
+      "Many relative perception mean values not stated in text - only visible in bar charts (Figures 4, 5, 6)",
+      "Supplementary Tables S1, S2 and Figure S1 not available in main paper"
+    ]
+  }
+}

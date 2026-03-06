@@ -1,0 +1,122 @@
+You are a scientific data extraction specialist. Your task is to extract all sensory data (numerical results) and derived metrics from a sensory science research paper.
+
+## Instructions
+
+Read the Results section, tables, and any quantitative data below. Extract ALL numerical sensory data reported in the paper. This is the most critical extraction step — capture every data point.
+
+## Output Format
+
+Return ONLY a JSON object with this structure (no additional text):
+
+```json
+{
+  "experiments": [
+    {
+      "experiment_id": "<study_id>_exp<N>",
+      "sensory_data": {
+        "<organize as appropriate for this paper's data structure>"
+      },
+      "derived_metrics": {
+        "<any calculated/fitted values reported in the paper>"
+      },
+      "statistical_outputs": {
+        "<ANOVA results, post-hoc tests, p-values, etc.>"
+      }
+    }
+  ]
+}
+```
+
+## sensory_data — Flexible Structure
+
+The `sensory_data` section should adapt to how the paper presents its data. Common patterns:
+
+**Pattern A: Dose-response data (means ± SEM per concentration)**
+```json
+"sensory_data": {
+  "dose_response_sweetness": {
+    "concentrations": [0.025, 0.05, 0.1, 0.2, 0.4, 0.6, 0.8],
+    "unit": "M",
+    "means": [2.1, 5.3, 12.7, 22.4, 35.1, 42.8, 48.2],
+    "sems": [0.8, 1.2, 2.1, 3.0, 3.5, 3.8, 4.1],
+    "scale": "gLMS",
+    "n": 40,
+    "data_source": "table_1"
+  }
+}
+```
+
+**Pattern B: Attribute ratings per stimulus (sensory profiles)**
+```json
+"sensory_data": {
+  "by_stimulus": {
+    "sample_A": {
+      "sweetness": {"mean": 5.2, "sd": 1.1},
+      "bitterness": {"mean": 2.8, "sd": 0.9},
+      "saltiness": {"mean": 6.1, "sd": 1.3}
+    }
+  }
+}
+```
+
+**Pattern C: Relative perception values (% change from baseline)**
+```json
+"sensory_data": {
+  "relative_perception": {
+    "attribute": "bitterness",
+    "reference_condition": "pure KCl",
+    "conditions": {
+      "KCl + 0.1M sucrose": {"mean_percent": -25.3, "ci_95": [-35.2, -15.4]},
+      "KCl + 0.2M sucrose": {"mean_percent": -42.1, "ci_95": [-52.0, -32.2]}
+    }
+  }
+}
+```
+
+## derived_metrics — Common Types
+
+- Power law exponents (Stevens' law: R = k * C^n)
+- EC50 / threshold concentrations
+- Sweetness potency (relative to sucrose)
+- Growth rates / curve parameters
+- Model fit statistics (R², AIC, etc.)
+
+## statistical_outputs — What to Capture
+
+- ANOVA results (F values, df, p values)
+- Post-hoc comparisons (Tukey, Bonferroni, etc.)
+- Correlation coefficients
+- Effect sizes (Cohen's d, η²)
+
+## Few-Shot Examples
+
+### Example 1: Dose-response study with power law fits
+
+{gold_standard_wee_data}
+
+### Example 2: Taste interaction study with relative perception
+
+{gold_standard_benabu_data}
+
+## Key Notes
+
+- EVERY number matters. Capture all means, standard deviations, standard errors, confidence intervals.
+- Always note the `data_source` for each data block: "table_1", "table_2", "inline_text", "figure_1", etc.
+- If data is presented in a table, extract the EXACT values from the table.
+- If data is only in figures, note `"data_source": "figure_X"` and flag it for figure extraction (Prompt E).
+- For data reported as "mean ± SEM" vs "mean ± SD", note which error measure is used.
+- Capture p-values and significance markers (* p<0.05, ** p<0.01, etc.)
+
+## Study ID: {study_id}
+
+## Results Section
+
+{results_text}
+
+## Tables (as structured data)
+
+{tables_markdown}
+
+## Methods Section (for context on what was measured)
+
+{methods_text}
