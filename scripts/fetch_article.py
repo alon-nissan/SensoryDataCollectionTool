@@ -210,14 +210,14 @@ def _fetch_oup(doi: str, url: str) -> str:
     # Step 2: Try Shibboleth login via Selenium
     print("  🔑 OUP requires authentication. Attempting Shibboleth login...")
     try:
-        from scripts.institutional_login import get_session
+        from institutional_login import get_session
 
         # Construct the proper article URL for OUP
         article_url = url
         if "doi.org" in url:
             article_url = f"https://academic.oup.com/article-lookup/doi/{doi}"
 
-        session = get_session(headless=True)
+        session = get_session()
         html = session.fetch_authenticated_html(article_url, publisher="oup")
 
         if len(html) > 5000:

@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
-"""Selenium-based institutional (Shibboleth/OpenAthens) login for accessing paywalled articles."""
+"""Selenium-based institutional (Shibboleth/OpenAthens) login for accessing paywalled articles.
+
+Strategy: Connect to the user's real Chrome browser via remote debugging port.
+This bypasses Cloudflare bot detection since it IS a real browser session.
+
+Usage:
+  1. Close Chrome completely (Cmd+Q)
+  2. The script will auto-launch Chrome with remote debugging enabled
+  3. If Cloudflare CAPTCHA appears, solve it manually in the browser
+  4. The script handles the rest (Shibboleth login, HTML extraction)
+"""
 
 import os
+import subprocess
 import time
 from pathlib import Path
 
@@ -10,50 +21,117 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT_DIR / ".env")
 
+DEBUG_DIR = ROOT_DIR / "data" / "_debug"
+CHROME_APP = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+CHROME_DEBUG_PORT = 9222
+CHROME_USER_DATA_DIR = str(Path.home() / "Library/Application Support/Google/Chrome")
+CHROME_PROFILE_DIR = "Profile 3"  # HUJI account (alon.nissan1@mail.huji.ac.il)
+
 
 class ShibbolethSession:
-    """Automates Shibboleth/OpenAthens institutional login via Selenium.
+    """Automates Shibboleth/OpenAthens login using the user's real Chrome browser.
 
-    Supports OUP and other publishers that use Shibboleth for institutional access.
-    Caches the browser session so multiple articles can be fetched without re-login.
+    Launches Chrome with remote debugging so Selenium controls the real browser
+    with all its cookies, extensions, and fingerprints — bypassing Cloudflare.
     """
 
     INSTITUTION_NAME = "Hebrew University of Jerusalem"
 
-    def __init__(self, headless: bool = True):
-        self.headless = headless
+    def __init__(self):
         self.driver = None
+        self._chrome_process = None
         self._authenticated = False
 
     def _ensure_driver(self):
-        """Initialize Selenium WebDriver if not already running."""
+        """Launch Chrome with remote debugging and connect Selenium to it."""
         if self.driver is not None:
             return
 
+        import socket
         from selenium import webdriver
         from selenium.webdriver.chrome.options import Options
-        from selenium.webdriver.chrome.service import Service
 
-        options = Options()
-        if self.headless:
-            options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--window-size=1920,1080")
-        options.add_argument(
-            "user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        # Kill any existing Chrome instances that might be holding the port
+        self._kill_existing_chrome()
+
+        print(f"  🚀 Launching Chrome (HUJI profile) with remote debugging on port {CHROME_DEBUG_PORT}...")
+        self._chrome_process = subprocess.Popen(
+            [
+                CHROME_APP,
+                f"--remote-debugging-port={CHROME_DEBUG_PORT}",
+                f"--user-data-dir={CHROME_USER_DATA_DIR}",
+                f"--profile-directory={CHROME_PROFILE_DIR}",
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-sync",
+                "--no-startup-window",   # suppress window while we wait for debug port
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
 
-        try:
-            from webdriver_manager.chrome import ChromeDriverManager
-            service = Service(ChromeDriverManager().install())
-        except ImportError:
-            service = Service()
+        # Wait for debug port to be ready (up to 15 seconds)
+        print("  ⏳ Waiting for Chrome debug port to open...", end="", flush=True)
+        port_open = False
+        for _ in range(30):
+            time.sleep(0.5)
+            try:
+                s = socket.create_connection(("127.0.0.1", CHROME_DEBUG_PORT), timeout=1)
+                s.close()
+                port_open = True
+                break
+            except (ConnectionRefusedError, OSError):
+                print(".", end="", flush=True)
+        print()
 
-        self.driver = webdriver.Chrome(service=service, options=options)
-        self.driver.implicitly_wait(10)
+        if not port_open:
+            raise RuntimeError(
+                f"Chrome debug port {CHROME_DEBUG_PORT} never opened. "
+                "Make sure Chrome is fully closed before running."
+            )
+
+        print("  ✅ Chrome debug port is open, connecting Selenium...")
+        options = Options()
+        options.debugger_address = f"127.0.0.1:{CHROME_DEBUG_PORT}"
+        self.driver = webdriver.Chrome(options=options)
+        self.driver.implicitly_wait(0)
+        print("  ✅ Connected to Chrome")
+
+    def _kill_existing_chrome(self):
+        """Kill any existing Chrome processes to free the debug port."""
+        result = subprocess.run(
+            ["pgrep", "-x", "Google Chrome"],
+            capture_output=True, text=True
+        )
+        pids = result.stdout.strip().split()
+        if pids:
+            print(f"  🔧 Closing existing Chrome (PID {', '.join(pids)})...")
+            for pid in pids:
+                try:
+                    subprocess.run(["kill", pid], capture_output=True)
+                except Exception:
+                    pass
+            time.sleep(3)
+
+    def _find_quick(self, *selectors):
+        """Try multiple selectors with NO wait. Returns first match or None."""
+        from selenium.common.exceptions import NoSuchElementException
+        for selector in selectors:
+            try:
+                return self.driver.find_element(*selector)
+            except NoSuchElementException:
+                continue
+        return None
+
+    def _save_debug_screenshot(self, name: str):
+        """Save a screenshot for debugging."""
+        DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        path = DEBUG_DIR / f"{name}.png"
+        try:
+            self.driver.save_screenshot(str(path))
+            print(f"  📸 Screenshot: {path.name}")
+        except Exception:
+            pass
 
     def _get_credentials(self) -> tuple[str, str]:
         """Load HUJI credentials from environment."""
@@ -67,231 +145,64 @@ class ShibbolethSession:
         return email, password
 
     def fetch_authenticated_html(self, article_url: str, publisher: str = "oup") -> str:
-        """Navigate to an article URL, authenticate via Shibboleth if needed, and return HTML.
-
-        Args:
-            article_url: Full URL of the article to fetch.
-            publisher: Publisher key (used to select the correct login flow).
-
-        Returns:
-            The full HTML of the authenticated article page.
-        """
+        """Navigate to article URL, handle Cloudflare + Shibboleth, return HTML."""
         self._ensure_driver()
-
-        if publisher == "oup":
-            return self._fetch_oup(article_url)
-        else:
-            return self._fetch_generic_shibboleth(article_url)
+        return self._fetch_oup(article_url)
 
     def _fetch_oup(self, article_url: str) -> str:
-        """Fetch an OUP article via Shibboleth institutional login."""
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException, NoSuchElementException
-
+        """Fetch an OUP article: navigate to it, let user handle Cloudflare + login."""
         email, password = self._get_credentials()
-        self.driver.get(article_url)
-        time.sleep(3)
 
-        # Check if we already have access (cached session)
+        print(f"  🌐 Navigating to: {article_url}")
+        self.driver.get(article_url)
+        time.sleep(4)
+        self._save_debug_screenshot("01_initial_page")
+        print(f"  📍 URL: {self.driver.current_url}")
+
+        # Check if we already have full-text access
         if self._has_full_text():
-            print("  ✅ Already authenticated (cached session)")
+            print("  ✅ Full text already accessible!")
             return self.driver.page_source
 
-        # Click "Sign in through your institution" or similar button
-        login_clicked = False
-        for selector in [
-            (By.LINK_TEXT, "Sign in through your institution"),
-            (By.PARTIAL_LINK_TEXT, "institution"),
-            (By.PARTIAL_LINK_TEXT, "Institutional"),
-            (By.CSS_SELECTOR, "a[href*='institutional']"),
-            (By.CSS_SELECTOR, "a[href*='institution-login']"),
-            (By.CSS_SELECTOR, "a[href*='Shibboleth']"),
-            (By.CSS_SELECTOR, ".institutional-login"),
-        ]:
-            try:
-                btn = self.driver.find_element(*selector)
-                btn.click()
-                login_clicked = True
-                print("  🔑 Clicked institutional login link")
-                time.sleep(3)
-                break
-            except NoSuchElementException:
-                continue
+        # Pause for user to handle Cloudflare + Shibboleth login manually
+        print()
+        print("  " + "─" * 60)
+        print("  👤 ACTION REQUIRED in the Chrome window:")
+        print("     1. If you see a Cloudflare challenge → solve it")
+        print("     2. Click 'Sign in through your institution'")
+        print("     3. Find and select 'Hebrew University of Jerusalem'")
+        print(f"     4. Log in with: {email}")
+        print("     5. Wait for the full article to load")
+        print("  " + "─" * 60)
+        input("\n  ▶ Press Enter here AFTER the full article is visible... ")
+        print()
 
-        if not login_clicked:
-            # Try direct institutional login URL
-            login_url = article_url.split("?")[0] + "?login=true"
-            self.driver.get(login_url)
-            time.sleep(3)
+        self._save_debug_screenshot("02_after_manual_login")
+        html = self.driver.page_source
+        print(f"  📄 Got page HTML ({len(html):,} chars)")
 
-        # Search for institution in the WAYF (Where Are You From) page
-        self._select_institution()
-
-        # Enter credentials on HUJI IdP page
-        self._enter_credentials(email, password)
-
-        # Wait for redirect back to the article
-        try:
-            WebDriverWait(self.driver, 30).until(
-                lambda d: "academic.oup.com" in d.current_url
-            )
-            time.sleep(3)
-        except TimeoutException:
-            print(f"  ⚠ Redirect timeout. Current URL: {self.driver.current_url}")
+        if not self._has_full_text():
+            print("  ⚠ Full-text markers not detected — saving HTML anyway")
 
         self._authenticated = True
-        return self.driver.page_source
-
-    def _select_institution(self):
-        """Find and select HUJI in the institution selection (WAYF) page."""
-        from selenium.webdriver.common.by import By
-        from selenium.common.exceptions import NoSuchElementException
-
-        time.sleep(2)
-
-        # Try various institution search/selection patterns
-        search_selectors = [
-            (By.CSS_SELECTOR, "input[type='search']"),
-            (By.CSS_SELECTOR, "input[type='text'][placeholder*='institution']"),
-            (By.CSS_SELECTOR, "input[type='text'][placeholder*='search']"),
-            (By.CSS_SELECTOR, "input#search"),
-            (By.CSS_SELECTOR, "input.search"),
-            (By.CSS_SELECTOR, "input[name='user_idp']"),
-            (By.CSS_SELECTOR, "#idp-search"),
-        ]
-
-        for selector in search_selectors:
-            try:
-                search_box = self.driver.find_element(*selector)
-                search_box.clear()
-                search_box.send_keys("Hebrew University")
-                time.sleep(2)
-
-                # Click the matching result
-                result_selectors = [
-                    (By.XPATH, f"//*[contains(text(), '{self.INSTITUTION_NAME}')]"),
-                    (By.XPATH, "//*[contains(text(), 'Hebrew University')]"),
-                    (By.CSS_SELECTOR, ".result-item"),
-                    (By.CSS_SELECTOR, ".institution-result"),
-                    (By.CSS_SELECTOR, "li.suggestion"),
-                ]
-                for rs in result_selectors:
-                    try:
-                        result = self.driver.find_element(*rs)
-                        result.click()
-                        time.sleep(2)
-                        return
-                    except NoSuchElementException:
-                        continue
-
-                # If no clickable result, try submitting the form
-                from selenium.webdriver.common.keys import Keys
-                search_box.send_keys(Keys.RETURN)
-                time.sleep(2)
-                return
-            except NoSuchElementException:
-                continue
-
-        # Fallback: look for a dropdown or direct link
-        try:
-            link = self.driver.find_element(
-                By.XPATH, f"//a[contains(text(), 'Hebrew University')]"
-            )
-            link.click()
-            time.sleep(2)
-        except NoSuchElementException:
-            print("  ⚠ Could not find institution selector. May already be on IdP page.")
-
-    def _enter_credentials(self, email: str, password: str):
-        """Enter credentials on the HUJI Shibboleth IdP login page."""
-        from selenium.webdriver.common.by import By
-        from selenium.common.exceptions import NoSuchElementException
-
-        time.sleep(2)
-
-        # Find username/email field
-        username_selectors = [
-            (By.CSS_SELECTOR, "input[type='email']"),
-            (By.CSS_SELECTOR, "input[name='username']"),
-            (By.CSS_SELECTOR, "input[name='j_username']"),
-            (By.CSS_SELECTOR, "input[name='email']"),
-            (By.CSS_SELECTOR, "input#username"),
-            (By.CSS_SELECTOR, "input#email"),
-            (By.CSS_SELECTOR, "input[type='text']"),
-        ]
-
-        for selector in username_selectors:
-            try:
-                field = self.driver.find_element(*selector)
-                field.clear()
-                field.send_keys(email)
-                print("  📧 Entered email")
-                break
-            except NoSuchElementException:
-                continue
-
-        # Find password field
-        try:
-            pwd_field = self.driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-            pwd_field.clear()
-            pwd_field.send_keys(password)
-            print("  🔒 Entered password")
-        except NoSuchElementException:
-            print("  ⚠ No password field found")
-            return
-
-        # Submit the form
-        submit_selectors = [
-            (By.CSS_SELECTOR, "button[type='submit']"),
-            (By.CSS_SELECTOR, "input[type='submit']"),
-            (By.CSS_SELECTOR, "button.login"),
-            (By.CSS_SELECTOR, "#login-button"),
-        ]
-        for selector in submit_selectors:
-            try:
-                btn = self.driver.find_element(*selector)
-                btn.click()
-                print("  ✅ Submitted login form")
-                time.sleep(5)
-                return
-            except NoSuchElementException:
-                continue
-
-        # Fallback: press Enter on password field
-        from selenium.webdriver.common.keys import Keys
-        pwd_field.send_keys(Keys.RETURN)
-        time.sleep(5)
+        return html
 
     def _has_full_text(self) -> bool:
         """Check if the current page has full-text article content."""
         from selenium.webdriver.common.by import By
-        from selenium.common.exceptions import NoSuchElementException
-
-        indicators = [
-            (By.CSS_SELECTOR, ".article-body"),
-            (By.CSS_SELECTOR, "#ContentTab"),
-            (By.CSS_SELECTOR, ".article-full-text"),
-            (By.CSS_SELECTOR, "div.section[id*='s']"),
-        ]
-        for selector in indicators:
-            try:
-                self.driver.find_element(*selector)
+        for sel in [".article-body", "#ContentTab", ".article-full-text",
+                    "div.section[id*='s']"]:
+            if self._find_quick((By.CSS_SELECTOR, sel)):
                 return True
-            except NoSuchElementException:
-                continue
         return False
 
-    def _fetch_generic_shibboleth(self, article_url: str) -> str:
-        """Generic Shibboleth login flow for non-OUP publishers."""
-        # Same general flow — navigate, find institution, enter credentials
-        return self._fetch_oup(article_url)
-
     def close(self):
-        """Close the Selenium browser session."""
+        """Disconnect from Chrome (but don't close the browser)."""
         if self.driver:
-            self.driver.quit()
+            try:
+                self.driver.quit()
+            except Exception:
+                pass
             self.driver = None
             self._authenticated = False
 
@@ -302,15 +213,15 @@ class ShibbolethSession:
         self.close()
 
 
-# Module-level singleton for session reuse across multiple fetches
+# Module-level singleton
 _session: ShibbolethSession | None = None
 
 
-def get_session(headless: bool = True) -> ShibbolethSession:
+def get_session(**kwargs) -> ShibbolethSession:
     """Get or create a shared ShibbolethSession."""
     global _session
     if _session is None:
-        _session = ShibbolethSession(headless=headless)
+        _session = ShibbolethSession()
     return _session
 
 
