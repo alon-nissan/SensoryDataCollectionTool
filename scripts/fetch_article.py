@@ -16,6 +16,8 @@ load_dotenv(ROOT_DIR / ".env")
 
 from scripts.fetch_validation import validate_html, detect_access_status
 
+MIN_CONTENT_FOR_COOKIES = 10_000  # Minimum chars to consider a cookie-based fetch successful
+
 
 def load_config():
     with open(ROOT_DIR / "config.yaml") as f:
@@ -208,7 +210,11 @@ def _is_vpn_active() -> bool:
 
 
 def _fetch_with_cookies(url: str, publisher: str) -> str | None:
-    """Try fetching an article using saved authentication cookies."""
+    """Try fetching an article using saved authentication cookies.
+    
+    Uses full browser-like headers and does NOT raise on HTTP errors
+    (OUP returns 403 even for valid sessions when headers are wrong).
+    """
     try:
         from scripts.institutional_login import get_saved_cookies_for_requests
         cookies = get_saved_cookies_for_requests(publisher)
@@ -218,12 +224,36 @@ def _fetch_with_cookies(url: str, publisher: str) -> str | None:
         session = requests.Session()
         session.cookies.update(cookies)
         session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": url,
+            "Connection": "keep-alive",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Upgrade-Insecure-Requests": "1",
         })
 
         resp = session.get(url, timeout=30, allow_redirects=True)
-        resp.raise_for_status()
+
+        # Don't bail on HTTP errors — check content first
+        # OUP sometimes returns 403 but still includes article content
+        if resp.status_code == 403 and len(resp.text) > MIN_CONTENT_FOR_COOKIES:
+            is_valid, issues = validate_html(resp.text, publisher)
+            if is_valid:
+                print(f"  ✅ Article fetched using saved cookies (HTTP 403 but content present)")
+                return resp.text
+
+        if resp.status_code >= 400:
+            print(f"  ⚠ Cookie fetch returned HTTP {resp.status_code}")
+            return None
 
         is_valid, issues = validate_html(resp.text, publisher)
         if is_valid:

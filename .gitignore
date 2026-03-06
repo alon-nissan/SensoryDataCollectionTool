@@ -20,6 +20,8 @@ env/
 data/html/
 data/figures/
 data/extractions/
+data/_cookies/
+data/_debug/
 sensory_index.db
 
 # OS files

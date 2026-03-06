@@ -163,20 +163,36 @@ class ShibbolethSession:
             return False
 
     def _kill_existing_chrome(self):
-        """Kill any existing Chrome processes to free the debug port."""
+        """Gracefully quit Chrome and wait for full exit."""
+        # Try graceful quit first (macOS)
+        subprocess.run(
+            ["osascript", "-e", 'quit app "Google Chrome"'],
+            capture_output=True,
+        )
+        print("  🔧 Quitting Chrome gracefully...")
+        # Wait up to 15 seconds for Chrome to fully exit
+        for _ in range(30):
+            time.sleep(0.5)
+            result = subprocess.run(
+                ["pgrep", "-x", "Google Chrome"],
+                capture_output=True, text=True,
+            )
+            if not result.stdout.strip():
+                return
+        # Force kill if still running
         result = subprocess.run(
             ["pgrep", "-x", "Google Chrome"],
             capture_output=True, text=True,
         )
         pids = result.stdout.strip().split()
         if pids:
-            print(f"  🔧 Closing existing Chrome (PID {', '.join(pids)})...")
+            print(f"  🔧 Force-killing Chrome (PID {', '.join(pids)})...")
             for pid in pids:
                 try:
-                    subprocess.run(["kill", pid], capture_output=True)
+                    subprocess.run(["kill", "-9", pid], capture_output=True)
                 except Exception:
                     pass
-            time.sleep(3)
+            time.sleep(2)
 
     # ── Element helpers ───────────────────────────────────────────────
 
