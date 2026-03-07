@@ -248,7 +248,7 @@ def _run_extraction_steps(html_path: Path, publisher: str, doi: str, study_id: s
     if not skip_figures and article.figures:
         console.print(f"  [dim]Step 4/10: Downloading {len(article.figures)} figures...[/dim]")
         from scripts.extract_figures import download_figures
-        figure_metadata = download_figures(article.figures, study_id)
+        figure_metadata = download_figures(article.figures, study_id, html_path=html_path)
         result["steps_completed"].append("download_figures")
     else:
         console.print("  [dim]Step 4/10: Skipping figures[/dim]")
@@ -380,7 +380,7 @@ def _run_extraction_steps(html_path: Path, publisher: str, doi: str, study_id: s
 def _run_prompt_a(llm, article, wee_example, benabu_example) -> dict:
     """Run Prompt A: Study Metadata."""
     prompt_template = _load_prompt_safe("prompt_a_metadata")
-    prompt = prompt_template.format(
+    prompt = _fill_template(prompt_template,
         gold_standard_wee=_extract_section(wee_example, "study_metadata"),
         gold_standard_benabu=_extract_section(benabu_example, "study_metadata"),
         article_text=article.full_text[:15000],
@@ -391,7 +391,7 @@ def _run_prompt_a(llm, article, wee_example, benabu_example) -> dict:
 def _run_prompt_b(llm, article, study_id, wee_example, benabu_example) -> dict:
     """Run Prompt B: Experiment Design."""
     prompt_template = _load_prompt_safe("prompt_b_experiment")
-    prompt = prompt_template.format(
+    prompt = _fill_template(prompt_template,
         study_id=study_id,
         gold_standard_wee_experiment=_extract_section(wee_example, "experiments"),
         gold_standard_benabu_experiment=_extract_section(benabu_example, "experiments"),
@@ -404,7 +404,7 @@ def _run_prompt_b(llm, article, study_id, wee_example, benabu_example) -> dict:
 def _run_prompt_c(llm, article, study_id, wee_example, benabu_example) -> dict:
     """Run Prompt C: Stimuli."""
     prompt_template = _load_prompt_safe("prompt_c_stimuli")
-    prompt = prompt_template.format(
+    prompt = _fill_template(prompt_template,
         study_id=study_id,
         gold_standard_wee_stimuli=_extract_section(wee_example, "stimuli"),
         gold_standard_benabu_stimuli=_extract_section(benabu_example, "stimuli"),
@@ -418,7 +418,7 @@ def _run_prompt_c(llm, article, study_id, wee_example, benabu_example) -> dict:
 def _run_prompt_d(llm, article, study_id, wee_example, benabu_example) -> dict:
     """Run Prompt D: Sensory Data + Derived Metrics."""
     prompt_template = _load_prompt_safe("prompt_d_sensory_data")
-    prompt = prompt_template.format(
+    prompt = _fill_template(prompt_template,
         study_id=study_id,
         gold_standard_wee_data=_extract_section(wee_example, "sensory_data"),
         gold_standard_benabu_data=_extract_section(benabu_example, "sensory_data"),
@@ -443,7 +443,7 @@ def _run_prompt_e(llm, figure_meta, article, study_id, wee_example) -> dict:
             scale_info = "9-point Likert (1-9)"
             break
 
-    prompt = prompt_template.format(
+    prompt = _fill_template(prompt_template,
         study_id=study_id,
         figure_caption=figure_meta.get("caption", ""),
         surrounding_text=figure_meta.get("surrounding_text", "")[:500],
@@ -455,6 +455,13 @@ def _run_prompt_e(llm, figure_meta, article, study_id, wee_example) -> dict:
 
 
 # ── Helpers ──────────────────────────────────────────────────
+
+def _fill_template(template: str, **kwargs) -> str:
+    """Fill a prompt template using str.replace(), safe with JSON braces."""
+    for key, value in kwargs.items():
+        template = template.replace(f"{{{key}}}", str(value))
+    return template
+
 
 def _load_prompt_safe(name: str) -> str:
     """Load a prompt template, returning a basic fallback if not found."""

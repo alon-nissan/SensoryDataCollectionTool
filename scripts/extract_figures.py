@@ -16,13 +16,16 @@ def load_config():
         return yaml.safe_load(f)
 
 
-def download_figures(figures: list, study_id: str, output_dir: Path = None) -> list[dict]:
+def download_figures(figures: list, study_id: str, output_dir: Path = None,
+                     html_path: Path = None) -> list[dict]:
     """Download figure images and return updated figure metadata.
 
     Args:
         figures: List of ParsedFigure objects or dicts with 'image_url' and 'caption'
         study_id: Paper identifier for organizing files
         output_dir: Base figures directory (default: data/figures/)
+        html_path: Path to the source HTML file — enables resolving local images
+                   from companion _files/ folder (Chrome "Save as Complete" format)
 
     Returns:
         List of dicts with local_path added
@@ -67,6 +70,22 @@ def download_figures(figures: list, study_id: str, output_dir: Path = None) -> l
             })
             continue
 
+        # Try resolving as a local file from the HTML's companion folder
+        resolved_local = _resolve_local_image(fig_url, html_path)
+        if resolved_local:
+            import shutil
+            shutil.copy2(resolved_local, local_path)
+            print(f"  Copied local: {fig_id} ← {resolved_local.name}")
+            results.append({
+                "figure_id": fig_id,
+                "caption": caption,
+                "image_url": fig_url,
+                "local_path": str(local_path),
+                "status": "local_copy",
+            })
+            continue
+
+        # Fall back to HTTP download
         try:
             print(f"  Downloading {fig_id}...")
             _download_image(fig_url, local_path)
@@ -98,10 +117,58 @@ def download_figures(figures: list, study_id: str, output_dir: Path = None) -> l
         # Rate limiting
         time.sleep(0.5)
 
-    downloaded = sum(1 for r in results if r["status"] in ("downloaded", "exists"))
+    downloaded = sum(1 for r in results if r["status"] in ("downloaded", "exists", "local_copy"))
     print(f"  📸 {downloaded}/{len(figures)} figures downloaded for {study_id}")
 
     return results
+
+
+def _resolve_local_image(fig_url: str, html_path: Path = None) -> Path | None:
+    """Try to resolve a figure URL to a local file alongside the HTML.
+
+    Chrome's "Save as → Webpage, Complete" stores images in a companion
+    _files/ folder. The HTML <img src> will be a relative path like
+    "ArticleName_files/image.jpeg". The parser may have urljoin'd it
+    to an absolute URL — we extract the filename and search locally.
+    """
+    if html_path is None:
+        return None
+
+    from urllib.parse import urlparse, unquote
+
+    # Extract the path portion (works for both URLs and relative paths)
+    parsed = urlparse(fig_url)
+    url_path = unquote(parsed.path if parsed.scheme else fig_url)
+    filename = Path(url_path).name
+
+    if not filename:
+        return None
+
+    html_dir = html_path.parent
+    html_stem = html_path.stem
+
+    # Search strategy:
+    # 1. Exact relative path from HTML's directory
+    candidate = html_dir / url_path
+    if candidate.is_file():
+        return candidate
+
+    # 2. Companion _files/ folder (Chrome "Webpage, Complete" format)
+    for suffix in ["_files", " Files", "_bestanden"]:
+        companion = html_dir / f"{html_stem}{suffix}"
+        if companion.is_dir():
+            match = companion / filename
+            if match.is_file():
+                return match
+
+    # 3. Any *_files/ folder in the same directory
+    for d in html_dir.iterdir():
+        if d.is_dir() and d.name.endswith("_files"):
+            match = d / filename
+            if match.is_file():
+                return match
+
+    return None
 
 
 def _get_extension(url: str) -> str:
