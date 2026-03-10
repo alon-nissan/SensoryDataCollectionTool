@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Automated pipeline for extracting sensory science data from published research papers into structured JSON, with a SQLite index for search/filtering. Uses Claude LLM (Sonnet for text, Opus for figure vision) via the Anthropic API.
+Automated pipeline for extracting sensory science data from published research papers into a normalized SQLite database. Uses a 4-agent LLM architecture (Claude Sonnet for text, Opus for figure vision) via the Anthropic API. Papers are manually downloaded as HTML/PDF and processed locally.
 
 ## Commands
 
@@ -12,42 +12,30 @@ Automated pipeline for extracting sensory science data from published research p
 # Setup
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # then fill in API keys
+cp .env.example .env  # then fill in ANTHROPIC_API_KEY
 
-# ── Primary: process manually-downloaded files ──
+# Initialize database (first time)
+python scripts/init_db.py
 
-# Single HTML or PDF file
+# Seed common substances
+python scripts/substance_resolver.py
+
+# Process files
 python scripts/orchestrate.py --file data/html/smith2019.html
 python scripts/orchestrate.py --file data/html/smith2019.html --doi "10.1093/chemse/28.3.219"
-python scripts/orchestrate.py --file data/html/smith2019.pdf --study-id smith2019
-
-# Batch: all HTML/PDF files in a directory
 python scripts/orchestrate.py --input-dir data/html/
-
-# Batch: CSV with file paths (columns: file_path, doi, study_id)
 python scripts/orchestrate.py --file-list papers.csv
 
-# ── Secondary: fetch by DOI (requires publisher access) ──
-
-python scripts/orchestrate.py --doi "10.3390/nu10111632"
-python scripts/orchestrate.py --doi-list papers.csv
-
-# ── Common options ──
-
---skip-figures   # Skip figure download & vision extraction
---force          # Re-extract even if output exists
---validate       # Validate against gold standard
---dry-run        # Show what would be done
-
-# Rebuild SQLite index from all extraction JSONs
-python scripts/build_index.py
+# Options
+--skip-figures     # Skip figure extraction (Agent 3)
+--force            # Re-extract even if output exists
+--validate-only    # Re-run validation (Agent 4) only
+--dry-run          # Show what would be done
 
 # Run individual pipeline steps
 python scripts/parse_article.py <html_file>        # auto-detects publisher
 python scripts/parse_article.py <html_file> oup     # explicit publisher
-python scripts/extract_figures.py <doi>
-python scripts/llm_extract.py <doi>
-python scripts/assemble_json.py <doi>
+python scripts/extract_figures.py <paper_id>
 python scripts/normalize_attributes.py <json_file>
 python scripts/validate.py <json_file>
 
@@ -61,18 +49,35 @@ No test suite exists currently.
 
 ### Pipeline Flow (orchestrate.py)
 
-**File-based (primary):**
-`Local HTML/PDF → auto-detect publisher → parse → download figures → LLM extract (Prompts A-E) → assemble JSON → normalize → index in SQLite → flag gaps`
+```
+Local HTML/PDF → auto-detect publisher → parse → Agent 1 (free extraction → rich JSON)
+  → Agent 2 (structuring → SQLite rows) → Agent 3 (figure vision extraction)
+  → Agent 4 (validation & correction) → SQLite database
+```
 
-**DOI-based (secondary, requires publisher access):**
-`DOI → resolve publisher → fetch HTML/XML → parse → download figures → LLM extract → assemble → normalize → index → flag gaps`
+`File → parse → Agent 1 (Sonnet, free extraction) → Agent 2 (Sonnet, structuring) → Agent 3 (Opus, figures) → Agent 4 (Sonnet, validation) → SQLite`
 
 Publisher auto-detection (`scripts/parse_article.py: detect_publisher()`) checks `<meta>` tags, known domain markers, and CSS classes in the HTML. PDFs always route to `PDFParser`.
 
 ### Two-Layer Data Storage
 
-- **Layer 1 — JSON files** (`data/extractions/`): Rich per-paper documents. Primary data store.
-- **Layer 2 — SQLite** (`data/sensory_index.db`): Thin searchable catalog for filtering/discovery.
+- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store. 10 relational tables: `papers`, `experiments`, `substances`, `substance_aliases`, `stimuli`, `samples`, `sample_components`, `results`, `extraction_runs`, `unit_conversions`.
+- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs preserved for audit/debugging.
+
+### Database Schema (v4)
+
+| Table | Purpose |
+|---|---|
+| `papers` | One row per paper (metadata, DOI, food category, validation status) |
+| `experiments` | One per experiment within a paper (method, scale, panel) |
+| `substances` | Global chemical entity registry, cross-paper (normalized name, CAS, SMILES) |
+| `substance_aliases` | Maps variant names → canonical `substance_id` |
+| `stimuli` | Paper-specific sourced instances of substances (supplier, purity, form) |
+| `samples` | What panelists actually tasted (label, base matrix, control flag) |
+| `sample_components` | Junction table: sample ↔ stimulus with concentration + canonical units |
+| `results` | Core data: sample × attribute → value (with error, source, confidence) |
+| `extraction_runs` | Audit trail: prompt versions, models, cost, validation report |
+| `unit_conversions` | Deterministic unit conversion rules (seeded by `init_db.py`) |
 
 ### Parser Hierarchy
 
@@ -83,34 +88,42 @@ Publisher auto-detection (`scripts/parse_article.py: detect_publisher()`) checks
 
 Publisher routing: auto-detected from file content, or configured in `config.yaml` under `publishers:`. `PARSER_MAP` in `scripts/parse_article.py` maps publisher key → parser class (includes `"pdf"` entry).
 
-### LLM Extraction (scripts/llm_extract.py)
+### 4-Agent LLM Extraction
 
-`LLMClient` wraps the Anthropic API with retry logic and cost tracking. Five specialized prompts in `prompts/`:
-- **A**: metadata, **B**: experiment design, **C**: stimuli, **D**: sensory data (tables/text), **E**: figure data (vision, uses Opus)
+`LLMClient` in `scripts/llm_extract.py` wraps the Anthropic API with retry logic and cost tracking. Four specialized agents with prompts in `prompts/`:
+
+- **Agent 1 — Free extraction** (`agent1_extract.py`, Sonnet): Reads parsed article and produces a rich, flexible JSON capturing all sensory data without schema constraints.
+- **Agent 2 — Structuring** (`agent2_structure.py`, Sonnet): Transforms Agent 1's JSON into structured rows matching the 10-table SQLite schema. Resolves substances via `substance_resolver.py`.
+- **Agent 3 — Figure extraction** (`agent3_figures.py`, Opus, vision): Extracts data from figure images using Claude's vision capability. Uses Agent 2's sample IDs for consistency.
+- **Agent 4 — Validation & correction** (`agent4_validate.py`, Sonnet): Two-level validation — L1 deterministic checks (missing fields, unit consistency, range plausibility) + L2 targeted LLM corrections for flagged issues.
 
 Gold-standard JSONs in `data/gold_standard/` (wee2018, benabu2018) serve as few-shot examples in prompts.
 
+### Key Scripts
+
+| Script | Role |
+|---|---|
+| `orchestrate.py` | Top-level CLI; runs the full pipeline |
+| `agent1_extract.py` | Agent 1: free extraction |
+| `agent2_structure.py` | Agent 2: structuring into DB rows |
+| `agent3_figures.py` | Agent 3: figure vision extraction |
+| `agent4_validate.py` | Agent 4: validation & correction |
+| `init_db.py` | Create/upgrade SQLite schema + seed unit conversions |
+| `db.py` | Database access layer (connections, queries, inserts) |
+| `paper_id.py` | Deterministic paper ID generation |
+| `substance_resolver.py` | Substance alias resolution (deterministic + LLM fallback) |
+| `parse_article.py` | Publisher auto-detection + parse dispatch |
+| `extract_figures.py` | Figure image download |
+| `llm_extract.py` | `LLMClient` wrapper for Anthropic API |
+| `normalize_attributes.py` | Sensory attribute normalization |
+| `validate.py` | Standalone validation utilities |
+
 ### Key Configuration
 
-- `.env` — API keys (Anthropic, Elsevier, Springer, Wiley) and institutional credentials
-- `config.yaml` — model names, file paths, publisher mappings, extraction thresholds
+- `.env` — `ANTHROPIC_API_KEY` (only key needed)
+- `config.yaml` — per-agent model names, prompt versions, file paths, publisher mappings, extraction settings (confidence threshold, spot-check fraction, etc.)
 - `vocabulary/attribute_map.json` — maps raw sensory attribute names to canonical forms
-
-### Institutional Access (optional, DOI-based flow only)
-
-`scripts/institutional_login.py` handles Shibboleth-based institutional login (HUJI) for publishers like OUP and Wiley. `scripts/export_cookies.py` reads Chrome cookies from disk via `browser-cookie3`.
-
-**Note:** Automated fetching from paywalled publishers is unreliable. The recommended workflow is to download HTML/PDF files manually in the browser and use `--file` or `--input-dir` to process them.
-
-Article fetching (`scripts/fetch_article.py`) uses a 6-layer fallback chain when DOI-based flow is used:
-1. Direct HTTP (open access)
-2. VPN-aware HTTP (auto-detects Samba VPN)
-3. Saved authentication cookies
-4. Unpaywall API (finds legal open-access versions)
-5. Automated Shibboleth/OpenAthens login
-6. PDF fallback
-
-`scripts/fetch_validation.py` validates fetched HTML (detects paywall pages, Cloudflare challenges, incomplete content).
+- `vocabulary/substances_seed.json` — seed data for the `substances` table
 
 ### scripts/ module resolution
 
