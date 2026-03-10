@@ -27,31 +27,9 @@ paths:
   html_dir: "data/html"
   figures_dir: "data/figures"
   extractions_dir: "data/extractions"
-  gold_standard_dir: "data/gold_standard"
   sqlite_db: "data/sensory_data.db"
   prompts_dir: "prompts"
   vocabulary_file: "vocabulary/attribute_map.json"
-
-# Publisher → Parser Mapping (for auto-detection from file content)
-publishers:
-  mdpi:
-    parser: "mdpi_parser"
-    domains: ["mdpi.com"]
-  elsevier:
-    parser: "elsevier_parser"
-    domains: ["elsevier.com", "sciencedirect.com"]
-  springer:
-    parser: "springer_parser"
-    domains: ["springer.com", "springernature.com", "nature.com"]
-  wiley:
-    parser: "wiley_parser"
-    domains: ["wiley.com", "onlinelibrary.wiley.com"]
-  oup:
-    parser: "oup_parser"
-    domains: ["academic.oup.com", "oup.com"]
-  generic:
-    parser: "generic_parser"
-    domains: []
 
 # Extraction Settings
 extraction:

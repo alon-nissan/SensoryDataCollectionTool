@@ -10,7 +10,7 @@ File-based only (no DOI fetching). Download HTML/PDF manually, then:
     python scripts/orchestrate.py --file-list papers.csv
 
 Pipeline per file:
-    1. Auto-detect publisher → parse article
+    1. Detect file type (HTML/PDF) → parse article
     2. Generate paper_id, create extraction_run in SQLite
     3. Agent 1 — free extraction
     4. Agent 2 — structuring → commit to SQLite
@@ -38,7 +38,7 @@ from rich.table import Table
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.parse_article import detect_publisher, parse_article
+from scripts.parse_article import detect_file_type, parse_article
 from scripts.extract_figures import download_figures
 from scripts.paper_id import doi_to_paper_id, paper_id_from_filename
 from scripts.llm_extract import LLMClient
@@ -106,14 +106,14 @@ def run_pipeline_from_file(
     }
 
     try:
-        # ── 1. Auto-detect publisher ────────────────────────────────────
+        # ── 1. Detect file type ──────────────────────────────────────
         console.print(f"\n[bold cyan]▶ Processing:[/] {file_path.name}")
-        publisher = detect_publisher(file_path)
-        console.print(f"  Publisher: [green]{publisher}[/]")
+        file_type = detect_file_type(file_path)
+        console.print(f"  File type: [green]{file_type}[/]")
 
         # ── 2. Parse article ────────────────────────────────────────────
         console.print("  Parsing article …")
-        article = parse_article(file_path, publisher, doi=doi, study_id=study_id)
+        article = parse_article(file_path, file_type, doi=doi, study_id=study_id)
         console.print(
             f"  Parsed: {len(article.sections)} sections, "
             f"{len(article.tables)} tables, {len(article.figures)} figures"

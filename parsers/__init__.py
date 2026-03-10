@@ -1,2 +1,3 @@
-# Publisher-specific HTML/XML parsers
-from parsers.oup_parser import OUPParser
+# Article parsers — HTML (any publisher) and PDF
+from parsers.generic_parser import GenericParser
+from parsers.pdf_parser import PDFParser

@@ -11,7 +11,7 @@ from rich.console import Console
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.llm_extract import LLMClient, load_prompt, load_gold_standard
+from scripts.llm_extract import LLMClient, load_prompt
 
 console = Console()
 
@@ -41,14 +41,6 @@ def run_agent1(article, study_id: str, config: dict = None,
     # Load prompt template
     prompt_template = load_prompt("agent1_free_extraction")
 
-    # Load gold standard example for few-shot
-    gold_example = "{}"
-    try:
-        gold_data = load_gold_standard("wee2018")
-        gold_example = json.dumps(gold_data, indent=2)[:4000]
-    except FileNotFoundError:
-        console.print("  [yellow]⚠ Gold standard not found — running without few-shot example[/yellow]")
-
     # Build article content for prompt
     tables_md = _get_tables_markdown(article)
     article_text = _build_article_text(article)
@@ -57,7 +49,6 @@ def run_agent1(article, study_id: str, config: dict = None,
     prompt = prompt_template
     prompt = prompt.replace("{article_text}", article_text)
     prompt = prompt.replace("{tables_markdown}", tables_md)
-    prompt = prompt.replace("{gold_standard_example}", gold_example)
 
     # Call LLM
     model = llm.get_model("agent1")

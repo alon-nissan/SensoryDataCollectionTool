@@ -264,18 +264,3 @@ def load_prompt(prompt_name: str) -> str:
     if not prompt_path.exists():
         raise FileNotFoundError(f"Prompt not found: {prompt_path}")
     return prompt_path.read_text()
-
-
-def load_gold_standard(study_id: str) -> dict:
-    """Load a gold-standard JSON as a few-shot example."""
-    path = ROOT_DIR / "data" / "gold_standard" / f"{study_id}_extraction.json"
-    if not path.exists():
-        raise FileNotFoundError(f"Gold standard not found: {path}")
-    with open(path) as f:
-        return json.load(f)
-
-
-def format_gold_example(study_id: str) -> str:
-    """Format a gold-standard JSON as a few-shot example string."""
-    data = load_gold_standard(study_id)
-    return json.dumps(data, indent=2)

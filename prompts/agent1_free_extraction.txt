@@ -11,6 +11,26 @@ IMPORTANT PRINCIPLES:
 - If information is not reported in the paper, omit the field rather than guessing. Do NOT fabricate values.
 - Preserve the authors' original terminology for sensory attributes — do not rename or normalize them.
 
+CONCEPTUAL HIERARCHY — SUBSTANCE → STIMULUS → SAMPLE:
+Understanding this hierarchy will help you organize extracted data correctly.
+
+1. SUBSTANCE = an abstract chemical entity (e.g., "sucrose", "citric acid", "capsaicin").
+   Just name the compound clearly — you do not need to create any special structure for it.
+
+2. STIMULUS = a paper-specific sourced instance of a substance, including supplier, purity, and form details.
+   Example: "Sucrose (Sigma-Aldrich, ≥99%, crystalline powder)".
+   Different papers may use the same substance from different suppliers — these are different stimuli.
+
+3. SAMPLE = what panelists actually tasted. A specific preparation containing one or more stimuli at specific concentrations dissolved/mixed in a base matrix.
+   Example: "0.3 M sucrose in distilled water" or "5% sucrose + 0.01 M citric acid in spring water".
+
+Key rules:
+- In dose-response studies, each concentration level is a SEPARATE SAMPLE (not a separate stimulus). The stimulus is the compound itself; the samples differ only in concentration.
+  Example: Testing sucrose at 7 concentrations = 1 stimulus, 7 samples.
+- Mixtures are SINGLE SAMPLES with multiple stimulus components. If panelists tasted "0.1 M sucrose + 0.001 M citric acid", that is one sample containing two stimuli at specific concentrations.
+- Controls (water blanks, vehicle controls) are also samples — flag them with is_control: true.
+- Capture supplier, purity, and form information at the stimulus level in the "stimuli" array, not repeated in each sensory_data entry.
+
 Produce a JSON object with these top-level sections:
 
 {
@@ -194,8 +214,5 @@ ADDITIONAL GUIDELINES:
 
 --- TABLES (MARKDOWN) ---
 {tables_markdown}
-
---- GOLD STANDARD EXAMPLE (for format reference) ---
-{gold_standard_example}
 
 Return ONLY the JSON. Do not include any explanation outside the JSON.
