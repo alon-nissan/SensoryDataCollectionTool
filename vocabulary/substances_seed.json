@@ -1,0 +1,23 @@
+{
+  "description": "Seed substances for the sensory data extraction database. Run scripts/substance_resolver.py to populate.",
+  "substances": [
+    {"normalized_name": "sucrose", "cas_number": "57-50-1", "category": "saccharide", "aliases": ["sugar", "table sugar", "cane sugar"]},
+    {"normalized_name": "glucose", "cas_number": "50-99-7", "category": "saccharide", "aliases": ["dextrose", "d-glucose"]},
+    {"normalized_name": "fructose", "cas_number": "57-48-7", "category": "saccharide", "aliases": ["fruit sugar", "d-fructose"]},
+    {"normalized_name": "sucralose", "cas_number": "56038-13-2", "category": "non_nutritive_synthetic", "aliases": ["splenda"]},
+    {"normalized_name": "aspartame", "cas_number": "22839-47-0", "category": "non_nutritive_synthetic", "aliases": ["equal", "nutrasweet"]},
+    {"normalized_name": "acesulfame_k", "cas_number": "55589-62-3", "category": "non_nutritive_synthetic", "aliases": ["ace-k", "acesulfame potassium"]},
+    {"normalized_name": "saccharin", "cas_number": "81-07-2", "category": "non_nutritive_synthetic", "aliases": ["sodium saccharin"]},
+    {"normalized_name": "stevioside", "cas_number": "57817-89-7", "category": "non_nutritive_natural", "aliases": ["stevia"]},
+    {"normalized_name": "rebaudioside_a", "cas_number": "58543-16-1", "category": "non_nutritive_natural", "aliases": ["reb a", "rebiana"]},
+    {"normalized_name": "erythritol", "cas_number": "149-32-6", "category": "polyol"},
+    {"normalized_name": "xylitol", "cas_number": "87-99-0", "category": "polyol"},
+    {"normalized_name": "sorbitol", "cas_number": "50-70-4", "category": "polyol"},
+    {"normalized_name": "sodium_chloride", "cas_number": "7647-14-5", "category": "salt", "aliases": ["nacl", "salt"]},
+    {"normalized_name": "potassium_chloride", "cas_number": "7447-40-7", "category": "salt", "aliases": ["kcl"]},
+    {"normalized_name": "citric_acid", "cas_number": "77-92-9", "category": "acid"},
+    {"normalized_name": "caffeine", "cas_number": "58-08-2", "category": "bitter"},
+    {"normalized_name": "quinine", "cas_number": "130-95-0", "category": "bitter"},
+    {"normalized_name": "monosodium_glutamate", "cas_number": "142-47-2", "category": "umami", "aliases": ["msg"]}
+  ]
+}

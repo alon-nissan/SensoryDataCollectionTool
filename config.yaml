@@ -1,13 +1,25 @@
-# Sensory Data Extraction Pipeline — Configuration
+# Sensory Data Extraction Pipeline — Configuration (v4)
 
 # LLM Settings
 llm:
-  text_model: "claude-sonnet-4-20250514"
-  vision_model: "claude-opus-4-20250514"
+  # Agent models
+  agent1_model: "claude-sonnet-4-20250514"   # Free extraction
+  agent2_model: "claude-sonnet-4-20250514"   # Structuring
+  agent3_model: "claude-opus-4-20250514"     # Figure extraction (vision)
+  agent4_model: "claude-sonnet-4-20250514"   # Validation & correction
+
+  # Shared settings
   max_tokens: 8192
   temperature: 0.0
   max_retries: 3
   retry_delay_seconds: 5
+
+# Prompt Versions (for extraction_runs tracking)
+prompt_versions:
+  agent1: "v1.0"
+  agent2: "v1.0"
+  agent3: "v1.0"
+  agent4: "v1.0"
 
 # File Paths
 paths:
@@ -16,50 +28,30 @@ paths:
   figures_dir: "data/figures"
   extractions_dir: "data/extractions"
   gold_standard_dir: "data/gold_standard"
-  sqlite_db: "data/sensory_index.db"
+  sqlite_db: "data/sensory_data.db"
   prompts_dir: "prompts"
   vocabulary_file: "vocabulary/attribute_map.json"
 
-# Publisher → Parser Mapping
+# Publisher → Parser Mapping (for auto-detection from file content)
 publishers:
   mdpi:
     parser: "mdpi_parser"
-    requires_api_key: false
     domains: ["mdpi.com"]
   elsevier:
     parser: "elsevier_parser"
-    requires_api_key: true
-    api_base: "https://api.elsevier.com/content/article/doi/"
     domains: ["elsevier.com", "sciencedirect.com"]
   springer:
     parser: "springer_parser"
-    requires_api_key: true
-    api_base: "https://api.springernature.com/openaccess/jats/"
     domains: ["springer.com", "springernature.com", "nature.com"]
   wiley:
     parser: "wiley_parser"
-    requires_api_key: true
     domains: ["wiley.com", "onlinelibrary.wiley.com"]
-    auth_method: "institutional"
-  generic:
-    parser: "generic_parser"
-    requires_api_key: false
-    domains: []
   oup:
     parser: "oup_parser"
-    requires_api_key: false
-    auth_method: "institutional"
     domains: ["academic.oup.com", "oup.com"]
-
-# Institutional Access Settings
-institutional_access:
-  method: auto  # auto | vpn | shibboleth | manual
-  vpn_check_url: "https://academic.oup.com"
-  cookie_dir: "data/_cookies"
-  cookie_ttl_hours: 4
-  shibboleth:
-    institution: "Hebrew University of Jerusalem"
-    captcha_timeout_seconds: 120
+  generic:
+    parser: "generic_parser"
+    domains: []
 
 # Extraction Settings
 extraction:
@@ -67,6 +59,9 @@ extraction:
   skip_figures: false
   force_reextract: false
   log_file: "extraction.log"
+  # Agent 4 validation settings
+  spot_check_fraction: 0.2    # Fraction of results to spot-check
+  max_targeted_corrections: 10 # Max L2 targeted LLM corrections per paper
 
 # Figure Extraction
 figures:

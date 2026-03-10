@@ -1,0 +1,201 @@
+You are extracting data from a sensory science research paper for a structured database. Your task is to produce a single, comprehensive JSON object that captures ALL reported information from the paper. Extract everything — the structuring and normalization will be handled by a downstream agent.
+
+IMPORTANT PRINCIPLES:
+- Extract EVERY reported number — means, SDs, SEs, confidence intervals, p-values, F-statistics, sample sizes, effect sizes, percentages.
+- Always note data_source for every piece of data: "Table 1", "Figure 2A", "text p.5", "inline text in Results", "Materials and Methods section", etc.
+- Look for multiple experiments (Experiment 1, Study A/B, Phase 1/2, Part I/II). Each gets its own entry in the experiments array.
+- For dose-response data: each concentration is a separate stimulus entry.
+- Capture ALL compounds in stimulus composition with their concentrations and units (M, mM, µM, g/L, % w/v, % w/w, ppm, mg/L, etc.).
+- Include controls (water, blank, vehicle) and reference samples (e.g., standard solutions).
+- Note any data available only in figures (not tables) — these will be extracted by a vision agent later. Still record what you can infer from figure captions and in-text references to figures.
+- If information is not reported in the paper, omit the field rather than guessing. Do NOT fabricate values.
+- Preserve the authors' original terminology for sensory attributes — do not rename or normalize them.
+
+Produce a JSON object with these top-level sections:
+
+{
+  "study_metadata": {
+    "doi": "string or null",
+    "title": "string",
+    "authors": ["list of author names"],
+    "year": integer,
+    "journal": "string",
+    "volume": "string or null",
+    "issue": "string or null",
+    "pages": "string or null",
+    "country": "country where study was conducted",
+    "institution": "primary institution",
+    "food_category": "e.g., beverages, dairy, confectionery, model solutions",
+    "keywords": ["from paper or inferred"],
+    "funding": "funding sources if reported",
+    "ethics_approval": "ethics committee and approval number if reported",
+    "data_availability": "one of: available_in_supplementary, available_in_repository, available_on_request, not_available, not_stated",
+    "data_availability_details": "any additional details about data access"
+  },
+
+  "experiments": [
+    {
+      "experiment_id": "exp1 (or the label used in the paper, e.g., 'Experiment 1', 'Study A')",
+      "description": "Brief description of what this experiment tests",
+
+      "panel": {
+        "type": "trained / untrained / consumer / expert / semi-trained",
+        "size": integer,
+        "demographics": "age range, gender split, any reported demographics",
+        "screening": "how panelists were screened (e.g., PROP taster status, threshold tests)",
+        "recruitment": "how panelists were recruited",
+        "training": "training protocol description if applicable"
+      },
+
+      "design": {
+        "sessions": "number and description of sessions",
+        "randomization": "randomization method (e.g., Williams Latin square, complete block)",
+        "presentation_order": "balanced, randomized, fixed, etc.",
+        "sample_volume": "volume/amount presented (e.g., '10 mL', '5 g')",
+        "hold_time": "how long sample was held in mouth if reported",
+        "ISI": "inter-stimulus interval",
+        "palate_cleanser": "what was used between samples (e.g., water, crackers)",
+        "environment": "testing environment (e.g., individual booths, red light)",
+        "software": "software used for data collection (e.g., Compusense, FIZZ, RedJade)",
+        "compensation": "panelist compensation if reported"
+      },
+
+      "scale": {
+        "type": "gLMS / LMS / QDA / CATA / TDS / hedonic / VAS / LAM / magnitude_estimation / category / ranking / other",
+        "full_name": "full scale name (e.g., 'generalized Labeled Magnitude Scale')",
+        "range": "scale endpoints (e.g., '0-100', 'no sensation to strongest imaginable')",
+        "anchors": ["list of labeled anchors on the scale, if any"],
+        "standardization": "any standardization procedure (e.g., modulus, reference stimulus)"
+      },
+
+      "stimuli": [
+        {
+          "label": "stimulus label as used in paper (e.g., 'S1', '0.1 M sucrose', 'Sample A')",
+          "description": "human-readable description",
+          "composition": {
+            "compound_name": {
+              "concentration": number,
+              "unit": "M / mM / µM / g/L / % w/v / % w/w / ppm / mg/L / etc.",
+              "role": "tastant / odorant / suppressor / enhancer / solvent / matrix / other"
+            }
+          },
+          "is_control": true/false,
+          "is_mixture": true/false,
+          "type": "solution / food / model_food / aroma / other",
+          "preparation": "how the stimulus was prepared",
+          "supplier": "chemical supplier if reported (e.g., Sigma-Aldrich)",
+          "purity": "purity grade if reported (e.g., ≥99%)",
+          "form": "powder / liquid / crystal / gel / etc."
+        }
+      ],
+
+      "sensory_data": [
+        {
+          "description": "What this data block represents (e.g., 'Mean sweetness intensity ratings', 'CATA frequencies for aroma attributes')",
+          "attribute": "sensory attribute name if applicable (e.g., 'sweetness', 'bitterness', 'overall_liking')",
+          "measure_type": "mean / median / frequency / proportion / dominance_rate / percentage / ranking / other",
+          "values": [
+            {
+              "stimulus": "stimulus label matching stimuli array",
+              "value": number,
+              "sd": "standard deviation if reported",
+              "se": "standard error if reported",
+              "ci_lower": "lower confidence interval bound if reported",
+              "ci_upper": "upper confidence interval bound if reported",
+              "n": "sample size for this measurement if different from panel size"
+            }
+          ],
+          "scale": "scale used for this measurement",
+          "n": "sample size",
+          "data_source": "Table 2 / Figure 1A / p.5 paragraph 3 / Results section"
+        }
+      ],
+
+      "derived_metrics": [
+        {
+          "metric_type": "power_law_exponent / EC50 / IC50 / detection_threshold / recognition_threshold / PSE / JND / potency_ratio / growth_rate / slope / R_squared / AUC / Weber_fraction / other",
+          "description": "what this metric represents",
+          "value": number,
+          "se": "standard error if reported",
+          "ci_lower": "lower CI if reported",
+          "ci_upper": "upper CI if reported",
+          "model": "model used to derive this (e.g., 'Stevens power function', 'logistic regression', '4-parameter Hill equation')",
+          "parameters": {"any additional model parameters"},
+          "conditions": "conditions under which this metric was derived",
+          "data_source": "Table 3 / text p.7 / etc."
+        }
+      ],
+
+      "statistical_outputs": [
+        {
+          "test_type": "ANOVA / repeated-measures ANOVA / mixed-model ANOVA / t-test / Tukey HSD / Bonferroni / Friedman / Wilcoxon / chi-square / correlation / regression / PCA / PERMANOVA / other",
+          "description": "what was tested",
+          "factors": ["factor names"],
+          "dependent_variable": "what was measured",
+          "statistic": "F / t / χ² / r / R² / etc.",
+          "statistic_value": number,
+          "df": "degrees of freedom (e.g., '2, 45' or '1')",
+          "p_value": number or "< 0.001",
+          "effect_size": "partial η², Cohen's d, etc. if reported",
+          "post_hoc": "post-hoc results summary",
+          "significance_groups": "letter groupings if reported (e.g., 'a, ab, b, c')",
+          "data_source": "Table 4 / Results section / etc."
+        }
+      ]
+    }
+  ],
+
+  "figure_inventory": [
+    {
+      "figure_id": "Figure 1",
+      "caption": "full figure caption text",
+      "type": "bar_chart / line_graph / scatter_plot / heatmap / PCA_biplot / TDS_curve / dose_response_curve / photograph / schematic / other",
+      "description": "what data this figure shows",
+      "data_extracted": false,
+      "extraction_notes": "Describe what numeric data could be extracted from this figure (e.g., 'Contains mean intensity values for 5 tastants at 6 concentrations — needs vision extraction')"
+    }
+  ],
+
+  "data_gaps": [
+    "List specific data that is missing or not reported. Examples:",
+    "SD/SE not reported for Table 2 means",
+    "Panel demographics not described",
+    "Individual panelist data not available",
+    "Post-hoc comparisons not reported for main ANOVA",
+    "Exact p-values not given (only p < 0.05 stated)"
+  ],
+
+  "cross_experiment_relationships": "Describe how experiments relate to each other (e.g., 'Experiment 2 uses the top 3 stimuli identified in Experiment 1', 'Study B replicates Study A with a different panel')"
+}
+
+ADDITIONAL GUIDELINES:
+
+1. SENSORY DATA FLEXIBILITY: The sensory_data array should adapt to whatever data the paper presents. This could be:
+   - Dose-response curves (intensity vs. concentration)
+   - Attribute profiles (multiple attributes per stimulus)
+   - CATA check-all-that-apply frequencies
+   - TDS temporal dominance rates at time points
+   - Hedonic ratings (liking/preference scores)
+   - Threshold values
+   - Ranking data
+   - Time-intensity curve parameters
+   Create as many data blocks as needed to capture all reported data.
+
+2. MULTIPLE DATA SOURCES: A single result may appear in multiple places (e.g., a mean in both a table and a figure). Record it once with the most precise source (prefer tables over figures, as tables give exact numbers).
+
+3. STIMULUS COMPOSITION: Be thorough. If a paper tests "0.1 M sucrose + 0.001 M citric acid", the composition object should have entries for both compounds with their concentrations and units.
+
+4. STATISTICAL DETAIL: For ANOVA tables, extract every row. For post-hoc tests, record all pairwise comparisons and their significance levels if reported.
+
+5. FIGURES: Even without vision extraction, you can often infer what data a figure contains from its caption, axis labels mentioned in text, and in-text references. Record this in figure_inventory with data_extracted: false.
+
+--- ARTICLE TEXT ---
+{article_text}
+
+--- TABLES (MARKDOWN) ---
+{tables_markdown}
+
+--- GOLD STANDARD EXAMPLE (for format reference) ---
+{gold_standard_example}
+
+Return ONLY the JSON. Do not include any explanation outside the JSON.

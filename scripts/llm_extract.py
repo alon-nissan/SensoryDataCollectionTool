@@ -35,8 +35,15 @@ class LLMClient:
 
         self.config = config or load_config()
         llm_config = self.config.get("llm", {})
-        self.text_model = llm_config.get("text_model", "claude-sonnet-4-20250514")
-        self.vision_model = llm_config.get("vision_model", "claude-opus-4-20250514")
+        # v4: per-agent model config (with fallback to legacy keys)
+        self.agent_models = {
+            "agent1": llm_config.get("agent1_model", llm_config.get("text_model", "claude-sonnet-4-20250514")),
+            "agent2": llm_config.get("agent2_model", llm_config.get("text_model", "claude-sonnet-4-20250514")),
+            "agent3": llm_config.get("agent3_model", llm_config.get("vision_model", "claude-opus-4-20250514")),
+            "agent4": llm_config.get("agent4_model", llm_config.get("text_model", "claude-sonnet-4-20250514")),
+        }
+        self.text_model = self.agent_models["agent1"]
+        self.vision_model = self.agent_models["agent3"]
         self.max_tokens = llm_config.get("max_tokens", 8192)
         self.temperature = llm_config.get("temperature", 0.0)
         self.max_retries = llm_config.get("max_retries", 3)
@@ -53,6 +60,10 @@ class LLMClient:
         self.total_output_tokens = 0
         self.call_count = 0
         self.costs_by_model = {}
+
+    def get_model(self, agent: str) -> str:
+        """Get the model name for a specific agent (agent1, agent2, agent3, agent4)."""
+        return self.agent_models.get(agent, self.text_model)
 
     def extract_json(self, prompt: str, model: str = None, system: str = None) -> dict:
         """Send a prompt and parse the response as JSON.

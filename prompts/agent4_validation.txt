@@ -1,0 +1,95 @@
+You are validating extracted sensory data against the original paper. You have been given the extraction results and the original article text. Your job is to identify: (1) data points in the paper that were MISSED by extraction, (2) extracted values that appear INCORRECT, and (3) any consistency issues.
+
+== ORIGINAL ARTICLE TEXT ==
+
+{article_text}
+
+== ORIGINAL TABLES ==
+
+{tables_markdown}
+
+== EXTRACTED RESULTS (summary) ==
+
+{extracted_results_summary}
+
+== EXTRACTED EXPERIMENTS ==
+
+{experiments_summary}
+
+Paper ID: {paper_id}
+
+== VALIDATION TASKS ==
+
+1. MISSED DATA: Scan the article text and tables for any reported sensory measurements that do NOT appear in the extracted results. Focus on:
+   - Table cells with numerical data not represented in the results
+   - In-text mentions of specific values (e.g., "sweetness was rated 6.2 ± 0.3")
+   - Supplementary data referenced in the text
+   - Statistical results (p-values, F-statistics) associated with sensory measures
+   - Any conditions, time points, or replicates that appear in the paper but are absent from extractions
+
+2. SUSPECT VALUES: Compare extracted values against the original source. Flag any that:
+   - Do not match the value in the original table or text
+   - Are outside the expected scale range for the experiment method
+   - Appear to have decimal point errors (e.g., 82.3 on a 9-point scale)
+   - Have mismatched units or scale transformations
+   - Have error values larger than the mean
+
+3. CONSISTENCY ISSUES: Check for internal consistency:
+   - Do all samples in an experiment have the same set of attributes?
+   - Are n values consistent within experiments?
+   - Are scale types consistent within experiments?
+   - Do sample labels match between experiments?
+
+4. DUPLICATE CANDIDATES: Identify cases where the same underlying data point may have been extracted twice (e.g., once from a table and once from a figure). For each pair:
+   - Compare the values — are they identical or within rounding tolerance?
+   - Recommend which to keep: table sources are generally more accurate than figures.
+
+== PRIORITY LEVELS ==
+
+- high: Entire table or major data section missed; values clearly wrong by >50%
+- medium: Individual values missed or off by 10–50%; minor consistency issues
+- low: Rounding differences; optional data like p-values missing; stylistic issues
+
+== OUTPUT FORMAT ==
+
+Return a JSON object with exactly this structure:
+
+{
+  "missed_data": [
+    {
+      "description": "What was missed",
+      "source_location": "Table 3, column 5",
+      "data_type": "result|experiment|sample",
+      "priority": "high|medium|low"
+    }
+  ],
+  "suspect_values": [
+    {
+      "result_description": "sweetness of sample X = 82.3",
+      "source_location": "Table 2",
+      "issue": "Value 82.3 exceeds 9-point scale range (1-9)",
+      "suggested_correction": 8.23,
+      "confidence": "high|medium|low"
+    }
+  ],
+  "consistency_issues": [
+    "Description of any consistency problems"
+  ],
+  "duplicate_candidates": [
+    {
+      "result_1": "sample X sweetness = 42.3 from Table 2",
+      "result_2": "sample X sweetness = 42.5 from Figure 1",
+      "recommendation": "keep_table|keep_figure|flag_for_review"
+    }
+  ],
+  "overall_assessment": "good|acceptable|needs_review",
+  "completeness_score": 0.85,
+  "notes": "Any additional observations about the extraction quality"
+}
+
+Field notes:
+- completeness_score: Estimated fraction of all reportable sensory data points that were successfully extracted (0.0 to 1.0).
+- overall_assessment: "good" = ≥90% complete with no major errors; "acceptable" = 70–90% complete or minor errors; "needs_review" = <70% complete or significant errors found.
+- If no issues are found in a category, return an empty array for that field.
+
+Return ONLY the JSON.

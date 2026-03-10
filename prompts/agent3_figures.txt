@@ -1,0 +1,80 @@
+You are extracting numerical data from a figure in a sensory science paper. A previous extraction step has already extracted tabulated data. Your job is to extract ADDITIONAL data visible in this figure that is NOT already in the existing results.
+
+== FIGURE INFORMATION ==
+
+Caption: {figure_caption}
+
+Description from article inventory: {figure_description}
+
+== EXISTING EXTRACTION CONTEXT ==
+
+Known samples (use these sample_ids — do NOT invent new ones):
+{existing_sample_ids}
+
+Already-extracted results (skip any values that duplicate these):
+{existing_results_summary}
+
+Experiment context (method, scale, range):
+{experiment_context}
+
+Paper ID: {paper_id}
+
+== INSTRUCTIONS ==
+
+1. Examine the figure carefully and identify every numerical data point visible.
+2. Use EXISTING sample_ids from the provided list. Do NOT create new sample_ids. If you see a sample in the figure that does not appear in the existing sample list, add its label to "unmatched_samples" instead of creating a result row.
+3. Skip values already present in existing_results_summary to avoid duplication. If a value for the same sample × attribute combination already exists from a table, do NOT re-extract it from the figure. Record skipped values in "skipped_values".
+4. For each NEW data point, create a result row with all required fields.
+
+== READING FIGURES ==
+
+- Bar charts: Read the bar height against the y-axis. Read error bars (top of bar to top of error bar = error value). Note whether error bars are SE or SD (check the caption/legend).
+- Line plots: Read each data point where a marker appears. Interpolate from gridlines.
+- Spider/radar plots: Read each spoke value for each sample.
+- Dose-response curves: Read each plotted point along the curve.
+- Box plots: Extract median, Q1, Q3, whisker endpoints if readable.
+- PCA/MFA biplots: Do NOT extract coordinates as sensory data — note in extraction_notes if relevant loadings are visible.
+- Heatmaps: Read cell values if labeled; otherwise estimate from the color scale.
+
+== CONFIDENCE RATING ==
+
+Rate extraction_confidence for each value:
+- "high": Value readable within ±2% of scale range, clear gridlines or labeled data points.
+- "medium": Value estimated within ±5–10% of scale range, interpolated between gridlines.
+- "low": Value estimated with >10% uncertainty, overlapping elements, poor resolution, or ambiguous reading.
+
+== OUTPUT FORMAT ==
+
+Return a JSON object with exactly this structure:
+
+{
+  "new_results": [
+    {
+      "experiment_id": "exp_id from experiment context",
+      "sample_id": "MUST use an existing sample_id from the provided list, or null if unknown",
+      "attribute_raw": "sweetness intensity",
+      "attribute_normalized": "sweetness",
+      "attribute_category": "taste",
+      "value": 42.5,
+      "value_type": "raw_mean",
+      "error_value": 3.2,
+      "error_type": "se",
+      "n": null,
+      "source_type": "figure",
+      "source_location": "Figure 1A",
+      "extraction_confidence": "medium"
+    }
+  ],
+  "skipped_values": ["List of values skipped because they match existing results"],
+  "unmatched_samples": ["Sample labels seen in figure but not in existing sample list"],
+  "extraction_notes": "Free text about extraction quality, issues, legibility, or anything notable"
+}
+
+Field notes:
+- experiment_id: Match to the most appropriate experiment from the context. Use null if unclear.
+- attribute_category: One of "taste", "aroma", "texture", "appearance", "flavor", "trigeminal", "hedonic", "other".
+- value_type: One of "raw_mean", "raw_median", "frequency_pct", "dominance_rate", "relative_pct", "intensity", "ranking", "other".
+- error_type: One of "se", "sd", "ci_95", "range", null.
+- extraction_confidence: One of "high", "medium", "low".
+
+Return ONLY the JSON.
