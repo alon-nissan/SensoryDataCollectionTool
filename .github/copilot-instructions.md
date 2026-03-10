@@ -21,7 +21,7 @@ python scripts/orchestrate.py --file-list papers.csv
 # Options: --skip-figures, --force, --validate-only, --dry-run
 
 # Run individual pipeline steps
-python scripts/parse_article.py <html_file>          # auto-detects publisher
+python scripts/parse_article.py <file_path>          # auto-detects HTML vs PDF
 python scripts/extract_figures.py <paper_id>
 python scripts/normalize_attributes.py <json_file>
 python scripts/validate.py <json_file>
@@ -34,7 +34,7 @@ No test suite exists.
 ### 4-Agent Pipeline (`orchestrate.py`)
 
 ```
-Local HTML/PDF → auto-detect publisher → parse
+Local HTML/PDF → detect file type → parse
   → Agent 1 (Sonnet): free extraction → rich JSON
   → Agent 2 (Sonnet): structuring → SQLite rows
   → Agent 3 (Opus, vision): figure data extraction
@@ -52,9 +52,9 @@ Each agent has a dedicated script (`scripts/agent{1-4}_*.py`) and prompt templat
 
 `parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods: `parse()`, `extract_sections()`, `extract_tables()`, `extract_figures()`. Also defines dataclasses: `ParsedArticle`, `ParsedTable`, `ParsedFigure`.
 
-Publisher-specific parsers: `elsevier_parser.py`, `springer_parser.py`, `wiley_parser.py`, `mdpi_parser.py`, `oup_parser.py`. Fallbacks: `generic_parser.py`, `pdf_parser.py`.
+Two parsers: `generic_parser.py` (enhanced HTML/XML parser consolidating patterns from all major publishers) and `pdf_parser.py` (PDF fallback).
 
-Auto-detection in `scripts/parse_article.py: detect_publisher()` checks `<meta>` tags, domain markers, and CSS classes. `PARSER_MAP` maps publisher keys → parser classes. PDFs always route to `PDFParser`.
+File type detection in `scripts/parse_article.py: detect_file_type()` routes `.pdf` files to `PDFParser`, everything else to `GenericParser`. `PARSER_MAP` maps file type keys → parser classes.
 
 ## Key Conventions
 
@@ -91,10 +91,6 @@ Includes retry with exponential backoff for rate limits and per-model cost track
 ### Environment
 
 Single env var: `ANTHROPIC_API_KEY` in `.env`, loaded via `python-dotenv`. Model names and all other config live in `config.yaml`.
-
-### Gold Standards
-
-`data/gold_standard/` contains manually validated JSONs (wee2018, benabu2018) used as few-shot examples in agent prompts.
 
 ### Vocabulary
 

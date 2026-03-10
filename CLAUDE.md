@@ -33,8 +33,8 @@ python scripts/orchestrate.py --file-list papers.csv
 --dry-run          # Show what would be done
 
 # Run individual pipeline steps
-python scripts/parse_article.py <html_file>        # auto-detects publisher
-python scripts/parse_article.py <html_file> oup     # explicit publisher
+python scripts/parse_article.py <file_path>          # auto-detects HTML vs PDF
+python scripts/parse_article.py <file_path> <doi> <study_id>
 python scripts/extract_figures.py <paper_id>
 python scripts/normalize_attributes.py <json_file>
 python scripts/validate.py <json_file>
@@ -50,14 +50,14 @@ No test suite exists currently.
 ### Pipeline Flow (orchestrate.py)
 
 ```
-Local HTML/PDF → auto-detect publisher → parse → Agent 1 (free extraction → rich JSON)
+Local HTML/PDF → detect file type (HTML/PDF) → parse → Agent 1 (free extraction → rich JSON)
   → Agent 2 (structuring → SQLite rows) → Agent 3 (figure vision extraction)
   → Agent 4 (validation & correction) → SQLite database
 ```
 
 `File → parse → Agent 1 (Sonnet, free extraction) → Agent 2 (Sonnet, structuring) → Agent 3 (Opus, figures) → Agent 4 (Sonnet, validation) → SQLite`
 
-Publisher auto-detection (`scripts/parse_article.py: detect_publisher()`) checks `<meta>` tags, known domain markers, and CSS classes in the HTML. PDFs always route to `PDFParser`.
+File type detection (`scripts/parse_article.py: detect_file_type()`) routes `.pdf` files to `PDFParser` and all other files to the enhanced `GenericParser`.
 
 ### Two-Layer Data Storage
 
@@ -81,12 +81,11 @@ Publisher auto-detection (`scripts/parse_article.py: detect_publisher()`) checks
 
 ### Parser Hierarchy
 
-`parsers/base_parser.py` defines `BaseParser` (ABC), `ParsedArticle`, `ParsedTable`, `ParsedFigure` dataclasses. Publisher-specific parsers inherit from `BaseParser`:
-- `elsevier_parser.py`, `springer_parser.py`, `wiley_parser.py`, `mdpi_parser.py`, `oup_parser.py` — handle publisher-specific HTML/XML/JATS structure
-- `generic_parser.py` — fallback for unknown publishers
-- `pdf_parser.py` — PDF fallback when no HTML available
+`parsers/base_parser.py` defines `BaseParser` (ABC), `ParsedArticle`, `ParsedTable`, `ParsedFigure` dataclasses. Two parsers inherit from `BaseParser`:
+- `generic_parser.py` — enhanced HTML/XML parser consolidating extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP)
+- `pdf_parser.py` — PDF parser using marker-pdf or PyMuPDF fallback
 
-Publisher routing: auto-detected from file content, or configured in `config.yaml` under `publishers:`. `PARSER_MAP` in `scripts/parse_article.py` maps publisher key → parser class (includes `"pdf"` entry).
+File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.pdf` files to `PDFParser`, all other files to `GenericParser`. `PARSER_MAP` maps file type key → parser class.
 
 ### 4-Agent LLM Extraction
 
@@ -96,8 +95,6 @@ Publisher routing: auto-detected from file content, or configured in `config.yam
 - **Agent 2 — Structuring** (`agent2_structure.py`, Sonnet): Transforms Agent 1's JSON into structured rows matching the 10-table SQLite schema. Resolves substances via `substance_resolver.py`.
 - **Agent 3 — Figure extraction** (`agent3_figures.py`, Opus, vision): Extracts data from figure images using Claude's vision capability. Uses Agent 2's sample IDs for consistency.
 - **Agent 4 — Validation & correction** (`agent4_validate.py`, Sonnet): Two-level validation — L1 deterministic checks (missing fields, unit consistency, range plausibility) + L2 targeted LLM corrections for flagged issues.
-
-Gold-standard JSONs in `data/gold_standard/` (wee2018, benabu2018) serve as few-shot examples in prompts.
 
 ### Key Scripts
 
@@ -112,7 +109,7 @@ Gold-standard JSONs in `data/gold_standard/` (wee2018, benabu2018) serve as few-
 | `db.py` | Database access layer (connections, queries, inserts) |
 | `paper_id.py` | Deterministic paper ID generation |
 | `substance_resolver.py` | Substance alias resolution (deterministic + LLM fallback) |
-| `parse_article.py` | Publisher auto-detection + parse dispatch |
+| `parse_article.py` | File type detection (HTML/PDF) + parse dispatch |
 | `extract_figures.py` | Figure image download |
 | `llm_extract.py` | `LLMClient` wrapper for Anthropic API |
 | `normalize_attributes.py` | Sensory attribute normalization |
@@ -121,7 +118,7 @@ Gold-standard JSONs in `data/gold_standard/` (wee2018, benabu2018) serve as few-
 ### Key Configuration
 
 - `.env` — `ANTHROPIC_API_KEY` (only key needed)
-- `config.yaml` — per-agent model names, prompt versions, file paths, publisher mappings, extraction settings (confidence threshold, spot-check fraction, etc.)
+- `config.yaml` — per-agent model names, prompt versions, file paths, extraction settings (confidence threshold, spot-check fraction, etc.)
 - `vocabulary/attribute_map.json` — maps raw sensory attribute names to canonical forms
 - `vocabulary/substances_seed.json` — seed data for the `substances` table
 

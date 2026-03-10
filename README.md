@@ -66,10 +66,9 @@ python scripts/orchestrate.py --file-list papers.csv
 │   ├── figures/            # Downloaded figure images
 │   ├── extractions/        # Agent output JSONs
 │   │   └── parts/          # Per-agent intermediate outputs (audit trail)
-│   ├── gold_standard/      # Manually validated JSONs (Wee 2018, Ben Abu 2018)
 │   └── sensory_data.db     # Primary SQLite database (v4 schema)
 ├── prompts/                # Agent prompt templates (agent1–agent4)
-├── parsers/                # Publisher-specific HTML/XML parsers
+├── parsers/                # HTML/XML and PDF article parsers
 ├── scripts/                # Pipeline scripts + orchestrator
 ├── vocabulary/             # Attribute normalization + substance seed data
 ├── analysis/               # Jupyter notebooks for research analysis
@@ -82,7 +81,7 @@ python scripts/orchestrate.py --file-list papers.csv
 
 ```
 Local HTML/PDF
-  → auto-detect publisher → parse
+  → detect file type → parse
   → Agent 1 (Sonnet, free extraction → rich JSON)
   → Agent 2 (Sonnet, structuring → SQLite rows)
   → Agent 3 (Opus, figure vision extraction)
@@ -110,19 +109,18 @@ Local HTML/PDF
 | `extraction_runs` | Audit trail: prompt versions, models, cost, validation report |
 | `unit_conversions` | Deterministic unit conversion rules |
 
-### Parser Hierarchy
+### Parsers
 
-Publisher-specific parsers inherit from `BaseParser` (ABC) in `parsers/base_parser.py`:
-- **Elsevier**, **Springer**, **Wiley**, **MDPI**, **OUP** — handle publisher-specific HTML/XML/JATS
-- **Generic** — fallback for unknown publishers
-- **PDF** — fallback when no HTML available
+`parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods and dataclasses: `ParsedArticle`, `ParsedTable`, `ParsedFigure`. Two parsers inherit from it:
+- **Generic** (`generic_parser.py`) — enhanced HTML/XML parser that consolidates extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP) into a multi-strategy cascade
+- **PDF** (`pdf_parser.py`) — fallback for PDF files
 
-Publisher auto-detection checks `<meta>` tags, domain markers, and CSS classes in the HTML.
+File type detection in `scripts/parse_article.py` routes `.pdf` files to `PDFParser` and everything else to `GenericParser`.
 
 ## Configuration
 
 - **`.env`** — `ANTHROPIC_API_KEY` (only key needed)
-- **`config.yaml`** — Per-agent model names, prompt versions, file paths, publisher mappings, extraction settings
+- **`config.yaml`** — Per-agent model names, prompt versions, file paths, extraction settings
 - **`vocabulary/attribute_map.json`** — Maps raw sensory attribute names to canonical forms
 - **`vocabulary/substances_seed.json`** — Seed data for the substances table
 
