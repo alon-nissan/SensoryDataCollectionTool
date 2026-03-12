@@ -31,6 +31,10 @@ Key rules:
 - Controls (water blanks, vehicle controls) are also samples — flag them with is_control: true.
 - Capture supplier, purity, and form information at the stimulus level in the "stimuli" array, not repeated in each sensory_data entry.
 
+CRITICAL — BASE MATRIX:
+Every sample has a base matrix — the carrier medium in which stimuli are dissolved or mixed. Common base matrices include: distilled water, deionized water, spring water, whole milk, skim milk, orange juice, apple juice, yogurt, custard, model wine solution, gelatin gel, etc. Always extract and record the base matrix for each sample. If the base matrix is not explicitly stated, look for it in the Methods section (e.g., "all solutions were prepared in deionized water"). If truly not reported, note this in data_gaps.
+A sample is ALWAYS composed of: (1) one or more stimuli at specific concentrations, AND (2) a base matrix. These are distinct concepts — do not merge them.
+
 Produce a JSON object with these top-level sections:
 
 {

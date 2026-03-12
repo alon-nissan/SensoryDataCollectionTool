@@ -50,6 +50,12 @@ Understand this hierarchy carefully:
    Example: "0.3 M sucrose in distilled water".
    One row in the `samples` table. Linked to stimuli via `sample_components`.
 
+CRITICAL — SAMPLE COMPOSITION:
+Every sample MUST have a base_matrix value. The base matrix is the carrier medium (e.g., "distilled water", "whole milk", "orange juice"). Each sample is composed of:
+  1. One or more STIMULI (linked via the sample_components junction table) at specific concentrations
+  2. A BASE MATRIX (stored directly on the sample row in the base_matrix column)
+These are distinct concepts: stimuli are the test compounds; base matrix is what they are dissolved/mixed in. If the base matrix is unclear, check the experimental methods or conditions. Default to "water" only if the methods section clearly implies aqueous solutions without specifying the type. Never leave base_matrix empty — if truly unknown, set to "not reported".
+
 ═══════════════════════════════════════════════════════════════════
 OUTPUT TABLE SCHEMAS
 ═══════════════════════════════════════════════════════════════════
