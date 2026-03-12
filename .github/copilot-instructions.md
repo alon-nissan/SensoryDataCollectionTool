@@ -50,11 +50,13 @@ Each agent has a dedicated script (`scripts/agent{1-4}_*.py`) and prompt templat
 
 ### Parser Hierarchy
 
-`parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods: `parse()`, `extract_sections()`, `extract_tables()`, `extract_figures()`. Also defines dataclasses: `ParsedArticle`, `ParsedTable`, `ParsedFigure`.
+`parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods: `parse()`, `extract_sections()`, `extract_tables()`, `extract_figures()`. Also defines dataclasses: `ParsedArticle`, `ParsedTable` (with `extraction_method` field: `"deterministic"` | `"vision"`), `ParsedFigure`.
 
-Two parsers: `generic_parser.py` (enhanced HTML/XML parser consolidating patterns from all major publishers) and `pdf_parser.py` (PDF fallback).
+Two parsers:
+- `generic_parser.py` — enhanced HTML/XML parser consolidating patterns from all major publishers. `_parse_html_table()` supports colspan/rowspan via grid-based cell expansion.
+- `pdf_parser.py` — **hybrid table extraction**: `pdfplumber` for deterministic table detection with confidence scoring (header quality, column consistency, cell fill rate). Low-confidence tables fall back to Claude vision (renders table region → Opus vision via `extract_json_with_image()`). Controlled by `table_extraction` section in `config.yaml`.
 
-File type detection in `scripts/parse_article.py: detect_file_type()` routes `.pdf` files to `PDFParser`, everything else to `GenericParser`. `PARSER_MAP` maps file type keys → parser classes.
+File type detection in `scripts/parse_article.py: detect_file_type()` routes `.pdf` files to `PDFParser`, everything else to `GenericParser`. `parse_article.py` now accepts optional `config` and `llm` parameters for the vision fallback. `orchestrate.py` creates the LLM client before parsing so vision costs are tracked.
 
 ## Key Conventions
 

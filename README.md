@@ -111,11 +111,11 @@ Local HTML/PDF
 
 ### Parsers
 
-`parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods and dataclasses: `ParsedArticle`, `ParsedTable`, `ParsedFigure`. Two parsers inherit from it:
-- **Generic** (`generic_parser.py`) — enhanced HTML/XML parser that consolidates extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP) into a multi-strategy cascade
-- **PDF** (`pdf_parser.py`) — fallback for PDF files
+`parsers/base_parser.py` defines `BaseParser` (ABC) with four abstract methods and dataclasses: `ParsedArticle`, `ParsedTable` (with `extraction_method`: `"deterministic"` | `"vision"`), `ParsedFigure`. Two parsers inherit from it:
+- **Generic** (`generic_parser.py`) — enhanced HTML/XML parser that consolidates extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP) into a multi-strategy cascade. Supports colspan/rowspan in HTML tables via grid-based cell expansion.
+- **PDF** (`pdf_parser.py`) — **hybrid table extraction**: primary `pdfplumber` deterministic extraction with confidence scoring (header quality, column consistency, cell fill rate), falling back to Claude vision for low-confidence tables (renders table region → Opus vision). Controlled by `table_extraction` config in `config.yaml`.
 
-File type detection in `scripts/parse_article.py` routes `.pdf` files to `PDFParser` and everything else to `GenericParser`.
+File type detection in `scripts/parse_article.py` routes `.pdf` files to `PDFParser` and everything else to `GenericParser`. The parser layer accepts optional `config` and `llm` parameters to support vision fallback; `orchestrate.py` creates the LLM client before parsing so vision costs are tracked.
 
 ## Configuration
 
@@ -128,3 +128,4 @@ File type detection in `scripts/parse_article.py` routes `.pdf` files to `PDFPar
 
 - Python 3.10+
 - Anthropic API key (Claude Sonnet + Opus access)
+- `pdfplumber` (for PDF table extraction)

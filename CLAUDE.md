@@ -81,11 +81,12 @@ File type detection (`scripts/parse_article.py: detect_file_type()`) routes `.pd
 
 ### Parser Hierarchy
 
-`parsers/base_parser.py` defines `BaseParser` (ABC), `ParsedArticle`, `ParsedTable`, `ParsedFigure` dataclasses. Two parsers inherit from `BaseParser`:
-- `generic_parser.py` — enhanced HTML/XML parser consolidating extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP)
-- `pdf_parser.py` — PDF parser using marker-pdf or PyMuPDF fallback
+`parsers/base_parser.py` defines `BaseParser` (ABC), `ParsedArticle`, `ParsedTable`, `ParsedFigure` dataclasses. `ParsedTable` includes an `extraction_method` field (`"deterministic"` | `"vision"`) indicating how the table was extracted. Two parsers inherit from `BaseParser`:
 
-File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.pdf` files to `PDFParser`, all other files to `GenericParser`. `PARSER_MAP` maps file type key → parser class.
+- `generic_parser.py` — enhanced HTML/XML parser consolidating extraction patterns from all major publishers (Elsevier, Springer, Wiley, MDPI, OUP). `_parse_html_table()` supports colspan/rowspan via a grid-based cell expansion approach.
+- `pdf_parser.py` — **hybrid table extraction**: primary extraction uses `pdfplumber` for deterministic table detection with a confidence heuristic (header quality, column consistency, cell fill rate). Low-confidence tables fall back to Claude vision (renders the table region as an image → Opus vision call via `extract_json_with_image()`). Controlled by the `table_extraction` section in `config.yaml`.
+
+File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.pdf` files to `PDFParser`, all other files to `GenericParser`. `PARSER_MAP` maps file type key → parser class. `parse_article.py` now accepts optional `config` and `llm` parameters to support the vision fallback path. `orchestrate.py` creates the LLM client before parsing so vision costs are tracked.
 
 ### 4-Agent LLM Extraction
 
@@ -118,7 +119,7 @@ File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.p
 ### Key Configuration
 
 - `.env` — `ANTHROPIC_API_KEY` (only key needed)
-- `config.yaml` — per-agent model names, prompt versions, file paths, extraction settings (confidence threshold, spot-check fraction, etc.)
+- `config.yaml` — per-agent model names, prompt versions, file paths, extraction settings (confidence threshold, spot-check fraction, etc.), and `table_extraction` section (vision fallback model, confidence thresholds)
 - `vocabulary/attribute_map.json` — maps raw sensory attribute names to canonical forms
 - `vocabulary/substances_seed.json` — seed data for the `substances` table
 
