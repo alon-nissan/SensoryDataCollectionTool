@@ -14,6 +14,7 @@ class ParsedTable:
     headers: list[str]
     rows: list[dict]  # Each row is a dict mapping header → value
     raw_html: str = ""
+    extraction_method: str = "deterministic"  # "deterministic" | "vision"
 
     def to_markdown(self) -> str:
         """Convert table to markdown format for LLM input."""
@@ -140,37 +141,80 @@ class BaseParser(ABC):
         return text
 
     def _parse_html_table(self, table_element) -> tuple[list[str], list[dict]]:
-        """Generic HTML table parser. Returns (headers, rows)."""
-        headers = []
-        rows = []
+        """Generic HTML table parser with colspan/rowspan support. Returns (headers, rows)."""
+        all_trs = table_element.find_all("tr")
+        if not all_trs:
+            return [], []
 
-        # Extract headers from <thead> or first <tr>
-        thead = table_element.find("thead")
-        if thead:
-            header_row = thead.find("tr")
-            if header_row:
-                headers = [
-                    self._clean_text(th.get_text())
-                    for th in header_row.find_all(["th", "td"])
-                ]
+        # Phase 1: Build a 2D grid handling colspan/rowspan
+        # occupied tracks cells filled by prior rowspans: (row, col) -> value
+        occupied: dict[tuple[int, int], str] = {}
+        grid: list[list[str]] = []
+        header_row_count = 0
 
-        # Extract body rows
-        tbody = table_element.find("tbody") or table_element
-        for tr in tbody.find_all("tr"):
+        for row_idx, tr in enumerate(all_trs):
             cells = tr.find_all(["td", "th"])
-            if not cells:
-                continue
+            row: list[str] = []
+            col_idx = 0
+            cell_idx = 0
 
-            # If we don't have headers yet, use first row as headers
-            if not headers:
-                headers = [self._clean_text(c.get_text()) for c in cells]
-                continue
+            while cell_idx < len(cells):
+                # Skip cells occupied by prior rowspans
+                while (row_idx, col_idx) in occupied:
+                    row.append(occupied.pop((row_idx, col_idx)))
+                    col_idx += 1
 
-            row_data = {}
-            for i, cell in enumerate(cells):
+                cell = cells[cell_idx]
+                value = self._clean_text(cell.get_text())
+                colspan = int(cell.get("colspan", 1) or 1)
+                rowspan = int(cell.get("rowspan", 1) or 1)
+
+                for _ in range(colspan):
+                    # Check for occupied cells (rowspan from above)
+                    while (row_idx, col_idx) in occupied:
+                        row.append(occupied.pop((row_idx, col_idx)))
+                        col_idx += 1
+
+                    row.append(value)
+                    # Register this cell for future rows if rowspan > 1
+                    for r_offset in range(1, rowspan):
+                        occupied[(row_idx + r_offset, col_idx)] = value
+                    col_idx += 1
+
+                cell_idx += 1
+
+            # Drain remaining occupied cells for this row
+            while (row_idx, col_idx) in occupied:
+                row.append(occupied.pop((row_idx, col_idx)))
+                col_idx += 1
+
+            grid.append(row)
+
+            # Detect header rows (in <thead> or all <th> cells)
+            in_thead = bool(tr.find_parent("thead"))
+            all_th = cells and all(c.name == "th" for c in cells)
+            if in_thead or (all_th and row_idx == header_row_count):
+                header_row_count = row_idx + 1
+
+        if not grid:
+            return [], []
+
+        # Phase 2: Determine headers and data rows
+        if header_row_count > 0:
+            headers = [str(h) for h in grid[header_row_count - 1]]
+            data_rows = grid[header_row_count:]
+        else:
+            headers = [str(h) for h in grid[0]]
+            data_rows = grid[1:]
+
+        # Phase 3: Convert to list of dicts
+        rows = []
+        for row in data_rows:
+            row_dict = {}
+            for i, value in enumerate(row):
                 key = headers[i] if i < len(headers) else f"col_{i}"
-                row_data[key] = self._clean_text(cell.get_text())
-            if row_data:
-                rows.append(row_data)
+                row_dict[key] = str(value)
+            if row_dict:
+                rows.append(row_dict)
 
         return headers, rows

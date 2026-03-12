@@ -111,9 +111,15 @@ def run_pipeline_from_file(
         file_type = detect_file_type(file_path)
         console.print(f"  File type: [green]{file_type}[/]")
 
+        # Shared LLM client (tracks cost across all agents, including PDF table vision)
+        llm = LLMClient(config) if not dry_run else None
+
         # ── 2. Parse article ────────────────────────────────────────────
         console.print("  Parsing article …")
-        article = parse_article(file_path, file_type, doi=doi, study_id=study_id)
+        article = parse_article(
+            file_path, file_type, doi=doi, study_id=study_id,
+            config=config, llm=llm,
+        )
         console.print(
             f"  Parsed: {len(article.sections)} sections, "
             f"{len(article.tables)} tables, {len(article.figures)} figures"
@@ -174,9 +180,6 @@ def run_pipeline_from_file(
         run_id = create_extraction_run(conn, paper_id, model_versions, prompt_versions)
         conn.commit()
         console.print(f"  Extraction run: [cyan]{run_id}[/]")
-
-        # Shared LLM client (tracks cost across all agents)
-        llm = LLMClient(config)
 
         # ── 5. Download / locate figures ────────────────────────────────
         figure_metadata = []

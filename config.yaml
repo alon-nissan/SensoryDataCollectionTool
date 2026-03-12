@@ -41,6 +41,11 @@ extraction:
   spot_check_fraction: 0.2    # Fraction of results to spot-check
   max_targeted_corrections: 10 # Max L2 targeted LLM corrections per paper
 
+# Table Extraction (PDF)
+table_extraction:
+  enable_vision_fallback: true       # Use Claude vision for low-confidence tables
+  vision_fallback_threshold: 0.4     # pdfplumber confidence below this triggers vision
+
 # Figure Extraction
 figures:
   supported_formats: ["png", "jpg", "jpeg", "gif", "svg"]

@@ -29,13 +29,16 @@ def detect_file_type(file_path: Path) -> str:
     return "html"
 
 
-def get_parser(file_type: str):
+def get_parser(file_type: str, config: dict = None, llm=None):
     """Get the appropriate parser for a file type."""
     parser_class = PARSER_MAP.get(file_type, GenericParser)
+    if file_type == "pdf":
+        return parser_class(config=config, llm=llm)
     return parser_class()
 
 
-def parse_article(file_path: Path, file_type: str = None, doi: str = "", study_id: str = "") -> ParsedArticle:
+def parse_article(file_path: Path, file_type: str = None, doi: str = "",
+                  study_id: str = "", config: dict = None, llm=None) -> ParsedArticle:
     """Parse an article file using the appropriate parser.
 
     Args:
@@ -43,6 +46,8 @@ def parse_article(file_path: Path, file_type: str = None, doi: str = "", study_i
         file_type: "html" or "pdf" (auto-detected if None)
         doi: DOI string if known
         study_id: Study identifier if known
+        config: Pipeline config dict (enables PDF vision fallback)
+        llm: LLMClient instance (enables PDF vision fallback)
 
     Returns:
         ParsedArticle with sections, tables, figures, and metadata
@@ -50,7 +55,7 @@ def parse_article(file_path: Path, file_type: str = None, doi: str = "", study_i
     if file_type is None:
         file_type = detect_file_type(file_path)
 
-    parser = get_parser(file_type)
+    parser = get_parser(file_type, config=config, llm=llm)
     article = parser.parse(file_path, doi=doi, study_id=study_id)
 
     print(f"  Parser: {parser.publisher_name}")

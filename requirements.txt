@@ -18,7 +18,10 @@ pyyaml>=6.0.0
 rich>=13.7.0
 tqdm>=4.66.0
 
-# PDF fallback (optional — uncomment if needed)
+# PDF table extraction
+pdfplumber>=0.10.0
+
+# PDF text extraction (optional — uncomment if needed)
 # marker-pdf>=0.3.0
 
 # Analysis notebooks
