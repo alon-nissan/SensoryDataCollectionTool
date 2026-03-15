@@ -3,10 +3,10 @@
 # LLM Settings
 llm:
   # Agent models
-  agent1_model: "claude-sonnet-4-20250514"   # Free extraction
-  agent2_model: "claude-sonnet-4-20250514"   # Structuring
-  agent3_model: "claude-opus-4-20250514"     # Figure extraction (vision)
-  agent4_model: "claude-sonnet-4-20250514"   # Validation & correction
+  agent1_model: "claude-sonnet-4-6"   # Free extraction
+  agent2_model: "claude-sonnet-4-6"   # Structuring
+  agent3_model: "claude-opus-4-6"     # Figure extraction (vision)
+  agent4_model: "claude-sonnet-4-6"   # Validation & correction
 
   # Shared settings
   max_tokens: 8192
