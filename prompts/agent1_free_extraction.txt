@@ -176,7 +176,9 @@ Produce a JSON object with these top-level sections:
       "type": "bar_chart / line_graph / scatter_plot / heatmap / PCA_biplot / TDS_curve / dose_response_curve / photograph / schematic / other",
       "description": "what data this figure shows",
       "data_extracted": false,
-      "extraction_notes": "Describe what numeric data could be extracted from this figure (e.g., 'Contains mean intensity values for 5 tastants at 6 concentrations — needs vision extraction')"
+      "extraction_notes": "Describe what numeric data could be extracted from this figure (e.g., 'Contains mean intensity values for 5 tastants at 6 concentrations — needs vision extraction')",
+      "relevance_score": 0.0,
+      "relevance_rationale": "Brief explanation of relevance assessment"
     }
   ],
 
@@ -212,6 +214,20 @@ ADDITIONAL GUIDELINES:
 4. STATISTICAL DETAIL: For ANOVA tables, extract every row. For post-hoc tests, record all pairwise comparisons and their significance levels if reported.
 
 5. FIGURES: Even without vision extraction, you can often infer what data a figure contains from its caption, axis labels mentioned in text, and in-text references. Record this in figure_inventory with data_extracted: false.
+
+6. FIGURE RELEVANCE SCORING: For each figure in figure_inventory, assign a relevance_score
+   between 0.0 and 1.0 indicating how likely the figure contains extractable sensory data
+   points (means, error bars, frequencies, etc.):
+   - 0.8-1.0: Almost certainly contains extractable sensory data (bar charts of intensity
+     ratings, dose-response curves, line graphs of sensory scores, heatmaps of sensory profiles)
+   - 0.5-0.7: Likely contains some data but may be partially redundant with tables or hard
+     to read (spider/radar plots, box plots, small multiples)
+   - 0.2-0.4: Unlikely to contain useful data (PCA biplots, MDS plots, dendrograms, flow
+     charts) but may have some readable values
+   - 0.0-0.1: No extractable sensory data (photographs, schematic diagrams, PRISMA charts,
+     molecular structures, experimental setup illustrations)
+
+   Figures whose data already appears in tables should receive lower scores.
 
 --- ARTICLE TEXT ---
 {article_text}

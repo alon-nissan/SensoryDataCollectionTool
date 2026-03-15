@@ -75,6 +75,39 @@ def load_config() -> dict:
 # Single-file pipeline
 # ---------------------------------------------------------------------------
 
+def _filter_figures_by_relevance(
+    figure_metadata: list[dict],
+    agent1_output: dict,
+    threshold: float,
+) -> tuple[list[dict], list[dict]]:
+    """Split figure_metadata into (kept, skipped) based on Agent 1 relevance scores.
+
+    Fail-open: figures with no matching score are kept.
+    """
+    # Build lookup: figure_id → inventory entry
+    inventory = {
+        entry.get("figure_id"): entry
+        for entry in agent1_output.get("figure_inventory", [])
+    }
+
+    kept, skipped = [], []
+    for fig in figure_metadata:
+        fig_id = fig.get("figure_id", "")
+        inv = inventory.get(fig_id)
+        score = inv.get("relevance_score") if inv else None
+
+        if score is not None and score < threshold:
+            skipped.append({
+                **fig,
+                "relevance_score": score,
+                "relevance_rationale": inv.get("relevance_rationale", ""),
+            })
+        else:
+            kept.append(fig)
+
+    return kept, skipped
+
+
 def run_pipeline_from_file(
     file_path: Path,
     doi: str = "",
@@ -84,6 +117,7 @@ def run_pipeline_from_file(
     force: bool = False,
     validate_only: bool = False,
     dry_run: bool = False,
+    no_figure_filter: bool = False,
 ) -> dict:
     """Run the full 4-agent pipeline on a single local file.
 
@@ -257,6 +291,26 @@ def run_pipeline_from_file(
         result["agents_run"].append("agent2")
         console.print("  Agent 2 ✓")
 
+        # ── 7b. Filter figures by relevance ─────────────────────────────
+        filtered_figures_info = []
+        if figure_metadata and not skip_figures and not no_figure_filter:
+            rel_threshold = config.get("figures", {}).get("relevance_threshold", 0.0)
+            if rel_threshold > 0:
+                figure_metadata, filtered_figures_info = _filter_figures_by_relevance(
+                    figure_metadata, agent1_output, rel_threshold,
+                )
+                if filtered_figures_info:
+                    console.print(
+                        f"  Figures filtered: [green]{len(figure_metadata)} kept[/], "
+                        f"[dim]{len(filtered_figures_info)} skipped (score < {rel_threshold})[/]"
+                    )
+                    for sf in filtered_figures_info:
+                        console.print(
+                            f"    [dim]↳ {sf.get('figure_id', '?')} "
+                            f"(score={sf.get('relevance_score', '?')}: "
+                            f"{sf.get('relevance_rationale', 'no rationale')})[/]"
+                        )
+
         # ── 8. Agent 3 — Figure extraction (optional) ──────────────────
         agent3_output = None
         if figure_metadata and not skip_figures:
@@ -265,6 +319,9 @@ def run_pipeline_from_file(
                 figure_metadata, agent1_output, agent2_output,
                 paper_id, run_id, config, llm,
             )
+            # Append filtered figures to Agent 3 output for audit trail
+            if filtered_figures_info:
+                agent3_output["filtered_figures"] = filtered_figures_info
             save_agent3_output(agent3_output, study_id, config)
             result["agents_run"].append("agent3")
             console.print("  Agent 3 ✓")
@@ -440,6 +497,10 @@ Examples:
         help="Skip figure download and Agent 3 (vision extraction)",
     )
     parser.add_argument(
+        "--no-figure-filter", action="store_true",
+        help="Process ALL figures in Agent 3, ignoring relevance scores",
+    )
+    parser.add_argument(
         "--force", action="store_true",
         help="Re-extract even if output already exists",
     )
@@ -500,6 +561,8 @@ Examples:
         flags.append("validate-only")
     if args.dry_run:
         flags.append("dry-run")
+    if args.no_figure_filter:
+        flags.append("no-figure-filter")
 
     console.print(
         Panel(
@@ -523,6 +586,7 @@ Examples:
             force=args.force,
             validate_only=args.validate_only,
             dry_run=args.dry_run,
+            no_figure_filter=args.no_figure_filter,
         )
         results.append(r)
 
