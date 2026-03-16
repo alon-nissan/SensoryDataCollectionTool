@@ -22,8 +22,8 @@ Paper ID: {paper_id}
 == INSTRUCTIONS ==
 
 1. Examine the figure carefully and identify every numerical data point visible.
-2. Use EXISTING sample_ids from the provided list. Do NOT create new sample_ids. If you see a sample in the figure that does not appear in the existing sample list, add its label to "unmatched_samples" instead of creating a result row.
-3. Skip values already present in existing_results_summary to avoid duplication. If a value for the same sample × attribute combination already exists from a table, do NOT re-extract it from the figure. Record skipped values in "skipped_values".
+2. PREFER using existing sample_ids from the provided list. Match by substance name, concentration, and any other identifying info in the figure legend/labels. If you encounter a sample in the figure that clearly does not match ANY existing sample, you MAY create a new sample_id using the format "{paper_id}__sample_fig_{N}" with source_type: "figure_created" and include full identifying info (substance name, concentration, matrix) in the result's context_json field. Flag these in "figure_created_samples". Only create new sample_ids as a last resort — always try to match existing samples first.
+3. Skip values already present in existing_results_summary to avoid duplication. If a value for the same sample × attribute combination already exists from a table or a prior figure, do NOT re-extract it. Record skipped values in "skipped_values".
 4. For each NEW data point, create a result row with all required fields.
 
 == READING FIGURES ==
@@ -66,7 +66,10 @@ Return a JSON object with exactly this structure:
     }
   ],
   "skipped_values": ["List of values skipped because they match existing results"],
-  "unmatched_samples": ["Sample labels seen in figure but not in existing sample list"],
+  "unmatched_samples": ["Sample labels seen in figure but not in existing sample list — only if you could not create a sample_id"],
+  "figure_created_samples": [
+    {"sample_id": "paper_id__sample_fig_1", "substance": "name", "concentration": "value unit", "label": "figure label"}
+  ],
   "extraction_notes": "Free text about extraction quality, issues, legibility, or anything notable"
 }
 

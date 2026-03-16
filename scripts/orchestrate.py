@@ -345,6 +345,7 @@ def run_pipeline_from_file(
         agent4_output = run_agent4(
             article, agent1_output, agent2_output, agent3_output,
             paper_id, run_id, config, llm,
+            figure_metadata=figure_metadata if figure_metadata else None,
         )
         save_agent4_output(agent4_output, study_id, config)
         result["agents_run"].append("agent4")

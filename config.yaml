@@ -16,10 +16,10 @@ llm:
 
 # Prompt Versions (for extraction_runs tracking)
 prompt_versions:
-  agent1: "v1.1"
-  agent2: "v1.0"
-  agent3: "v1.0"
-  agent4: "v1.0"
+  agent1: "v1.2"
+  agent2: "v1.1"
+  agent3: "v1.1"
+  agent4: "v1.1"
 
 # File Paths
 paths:

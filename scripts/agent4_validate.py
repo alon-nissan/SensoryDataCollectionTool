@@ -20,7 +20,8 @@ console = Console()
 
 def run_agent4(article, agent1_output: dict, agent2_output: dict,
                agent3_output: dict | None, paper_id: str, run_id: int,
-               config: dict = None, llm: LLMClient = None) -> dict:
+               config: dict = None, llm: LLMClient = None,
+               figure_metadata: list = None) -> dict:
     """Run Agent 4: Validation and correction pipeline.
 
     Args:
@@ -32,6 +33,7 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
         run_id: Extraction run ID
         config: Config dict
         llm: LLMClient instance
+        figure_metadata: List of figure dicts with local_path for visual verification
 
     Returns:
         Validation report dict
@@ -95,7 +97,8 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
         sample_indices = random.sample(range(len(all_results)), min(sample_size, len(all_results)))
         sampled = [all_results[i] for i in sample_indices]
         console.print(f"    [dim]Spot-checking {len(sampled)}/{len(all_results)} results...[/dim]")
-        spot_results = _run_spot_check(sampled, article, llm, config)
+        spot_results = _run_spot_check(sampled, article, llm, config,
+                                       figure_metadata=figure_metadata)
         report["spot_check"] = spot_results
 
     # ── Deduplication ──
@@ -308,24 +311,50 @@ def _run_completeness_check(article, results: list, experiments: list,
         return {"error": str(e), "overall_assessment": "error"}
 
 
-def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict) -> dict:
-    """Spot-check random results against original text."""
+def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict,
+                    figure_metadata: list = None) -> dict:
+    """Spot-check random results against original text or figure images."""
     model = llm.get_model("agent4")
     checked = 0
     issues = []
 
+    # Build figure path lookup: figure_id → local_path
+    figure_paths = {}
+    if figure_metadata:
+        for fig in figure_metadata:
+            fig_id = fig.get("figure_id", "")
+            local_path = fig.get("local_path", "")
+            if fig_id and local_path and Path(local_path).exists():
+                figure_paths[fig_id] = local_path
+
     for r in sampled_results[:5]:  # Limit to 5 to control cost
+        source_location = r.get("source_location", "unknown")
+        source_type = r.get("source_type", "")
+
         prompt = (
             f"Verify this extracted data point against the original paper:\n"
             f"- Sample: {r.get('sample_id', 'unknown')}\n"
             f"- Attribute: {r.get('attribute_raw', 'unknown')}\n"
             f"- Value: {r.get('value')}\n"
-            f"- Source: {r.get('source_location', 'unknown')}\n\n"
+            f"- Source: {source_location}\n\n"
             f"Return JSON: {{\"correct\": true/false, \"actual_value\": <number or null>, \"explanation\": \"...\"}}"
         )
 
         try:
-            result = llm.extract_json(prompt, model=model)
+            # If result is from a figure and we have the image, use vision
+            fig_path = None
+            if source_type == "figure":
+                # Try to match source_location to a figure_id
+                for fig_id, path in figure_paths.items():
+                    if fig_id.lower() in source_location.lower():
+                        fig_path = path
+                        break
+
+            if fig_path:
+                result = llm.extract_json_with_image(prompt, fig_path, model=model)
+            else:
+                result = llm.extract_json(prompt, model=model)
+
             checked += 1
             if not result.get("correct", True):
                 issues.append({

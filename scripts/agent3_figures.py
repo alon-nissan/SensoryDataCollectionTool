@@ -51,9 +51,16 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
     existing_summary = _build_existing_results_summary(agent2_output)
     experiment_context = _build_experiment_context(agent2_output)
 
+    # Use compact format for sample list to avoid truncation
+    sample_ids_str = _format_sample_list_compact(sample_ids)
+    experiment_context_str = json.dumps(experiment_context, indent=2)
+
     all_results = []
     all_unmatched = []
     all_notes = []
+
+    # Track accumulated results across figures for deduplication (FIX 5)
+    accumulated_results = list(existing_summary)  # Start with Agent 2's results
 
     for fig in figure_metadata:
         local_path = fig.get("local_path", "")
@@ -67,13 +74,16 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
         # Get figure description from Agent 1 inventory
         fig_description = _get_figure_description(agent1_output, fig_id)
 
+        # Build per-figure dedup summary (Agent 2 results + results from prior figures)
+        dedup_summary_str = json.dumps(accumulated_results, indent=2)
+
         # Fill prompt
         prompt = prompt_template
         prompt = prompt.replace("{figure_caption}", caption)
         prompt = prompt.replace("{figure_description}", fig_description)
-        prompt = prompt.replace("{existing_sample_ids}", json.dumps(sample_ids, indent=2)[:3000])
-        prompt = prompt.replace("{existing_results_summary}", json.dumps(existing_summary, indent=2)[:5000])
-        prompt = prompt.replace("{experiment_context}", json.dumps(experiment_context, indent=2)[:2000])
+        prompt = prompt.replace("{existing_sample_ids}", sample_ids_str)
+        prompt = prompt.replace("{existing_results_summary}", dedup_summary_str)
+        prompt = prompt.replace("{experiment_context}", experiment_context_str)
         prompt = prompt.replace("{paper_id}", paper_id)
 
         try:
@@ -92,6 +102,15 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
             all_unmatched.extend(result.get("unmatched_samples", []))
             if result.get("extraction_notes"):
                 all_notes.append(f"{fig_id}: {result['extraction_notes']}")
+
+            # Accumulate results for cross-figure deduplication
+            for r in new_results:
+                accumulated_results.append({
+                    "sample_id": r.get("sample_id"),
+                    "attribute": r.get("attribute_normalized", r.get("attribute_raw", "")),
+                    "value": r.get("value"),
+                    "source": r.get("source_location", fig_id),
+                })
 
             console.print(f"    [green]✓ {fig_id}: {len(new_results)} new data points[/green]")
 
@@ -119,6 +138,21 @@ def _build_sample_id_list(agent2_output: dict) -> list[dict]:
     samples = agent2_output.get("samples", [])
     return [{"sample_id": s.get("sample_id"), "label": s.get("sample_label", "")}
             for s in samples]
+
+
+def _format_sample_list_compact(sample_ids: list[dict]) -> str:
+    """Format sample list in compact pipe-delimited format to avoid truncation.
+
+    Instead of verbose JSON with indentation, produce one line per sample:
+        sample_id | label
+    This fits ~5x more samples in the same character budget.
+    """
+    lines = ["sample_id | label"]
+    for s in sample_ids:
+        sid = s.get("sample_id", "")
+        label = s.get("label", "")
+        lines.append(f"{sid} | {label}")
+    return "\n".join(lines)
 
 
 def _build_existing_results_summary(agent2_output: dict) -> list[dict]:

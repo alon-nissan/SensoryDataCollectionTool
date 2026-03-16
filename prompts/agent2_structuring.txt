@@ -393,6 +393,33 @@ Return a single JSON object with this structure:
 ```
 
 ═══════════════════════════════════════════════════════════════════
+DERIVED METRICS → RESULTS MAPPING
+═══════════════════════════════════════════════════════════════════
+
+Agent 1 may include a `derived_metrics` array within each experiment containing model
+parameters (Stevens' law exponents, Hill equation parameters like Imax/K/n, EC50 values,
+potency ratios, slopes, intercepts, R² values, etc.). Convert each derived metric into
+a results row as follows:
+
+  - metric_type → attribute_raw (e.g., "power_law_exponent", "potency_ratio_5pct_sucrose")
+  - description → use to build a clear attribute_raw if metric_type alone is ambiguous
+  - value → value
+  - value_type = "derived_param"
+  - se / ci_lower / ci_upper → error_value / error_type (map appropriately)
+  - data_source → source_location
+  - model / parameters / conditions → store as JSON string in context_json
+  - extraction_confidence = "high" (these come from tables with exact values)
+  - source_type = "table" or "text" (based on data_source)
+
+For metrics that apply to a specific substance/sweetener (e.g., "slope for sucrose"),
+match to the appropriate sample_id. If the metric is experiment-level and not
+sample-specific, set sample_id to null.
+
+For potency ratios, create one result row per substance × reference level combination:
+  - attribute_raw = "potency_ratio" or the specific label from the paper
+  - Store the reference conditions (e.g., "relative to 5% sucrose") in context_json
+
+═══════════════════════════════════════════════════════════════════
 IMPORTANT RULES
 ═══════════════════════════════════════════════════════════════════
 

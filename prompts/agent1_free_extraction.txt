@@ -194,6 +194,19 @@ Produce a JSON object with these top-level sections:
   "cross_experiment_relationships": "Describe how experiments relate to each other (e.g., 'Experiment 2 uses the top 3 stimuli identified in Experiment 1', 'Study B replicates Study A with a different panel')"
 }
 
+CONCENTRATION EXTRACTION (CRITICAL):
+When concentration series appear in the main paper tables (e.g., Table 2 listing
+concentrations in % w/v, M, mM, ppm, etc.), ALWAYS extract them as part of the
+stimulus/sample composition — even if supplementary data exists with different units.
+Record both the main-text value and any supplementary reference. Never leave
+concentration as null when the paper provides it in any form. If a concentration
+appears in one unit in the main text and another unit in the supplement, extract BOTH
+with their respective sources noted.
+
+For dose-response studies, concentrations are the x-axis variable — they are essential
+for data interpretation. Each concentration level should become a separate sample with
+its concentration value explicitly recorded.
+
 ADDITIONAL GUIDELINES:
 
 1. SENSORY DATA FLEXIBILITY: The sensory_data array should adapt to whatever data the paper presents. This could be:
@@ -228,6 +241,12 @@ ADDITIONAL GUIDELINES:
      molecular structures, experimental setup illustrations)
 
    Figures whose data already appears in tables should receive lower scores.
+
+   IMPORTANT — FIGURE-PRIMARY PAPERS: If the paper's primary quantitative results
+   (e.g., dose-response data, mean sensory ratings) appear ONLY in figures and are NOT
+   tabulated, score ALL data-bearing figures at 0.8+ regardless of overlap with other
+   figures. In such papers, figures are the primary data source, not supplementary
+   illustrations. Set "figure_primary_data": true in the study_metadata if this applies.
 
 --- ARTICLE TEXT ---
 {article_text}
