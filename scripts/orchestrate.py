@@ -119,6 +119,7 @@ def run_pipeline_from_file(
     validate_only: bool = False,
     dry_run: bool = False,
     no_figure_filter: bool = False,
+    from_agent3: bool = False,
 ) -> dict:
     """Run the full 4-agent pipeline on a single local file.
 
@@ -189,7 +190,7 @@ def run_pipeline_from_file(
 
         # Check for existing data
         existing = get_paper(conn, paper_id)
-        if existing and not force and not validate_only:
+        if existing and not force and not validate_only and not from_agent3:
             console.print(
                 f"  [yellow]Paper already extracted (run {existing.get('latest_run_id')}). "
                 f"Use --force to re-extract.[/]"
@@ -202,6 +203,20 @@ def run_pipeline_from_file(
             console.print("  [red]--force: deleting existing data …[/]")
             delete_paper_data(conn, paper_id)
             conn.commit()
+
+        if from_agent3:
+            if not existing:
+                raise RuntimeError(
+                    f"--from-agent3 requires Agent 2 to have run previously. "
+                    f"No existing data found for paper_id={paper_id}."
+                )
+            # Delete only figure-sourced results; keep Agent 2's data intact
+            conn.execute(
+                "DELETE FROM results WHERE paper_id = ? AND source_type = 'figure'",
+                (paper_id,),
+            )
+            conn.commit()
+            console.print("  [cyan]--from-agent3: cleared previous figure results[/cyan]")
 
         # Ensure paper row exists so extraction_runs FK is satisfied
         if not existing:
@@ -286,6 +301,87 @@ def run_pipeline_from_file(
             conn.close()
             return result
 
+        # ── from-agent3: load artifacts, re-run agents 3 & 4 ──────────
+        if from_agent3:
+            console.print("  [cyan]--from-agent3: loading existing artifacts …[/]")
+            extractions_dir = ROOT_DIR / config["paths"]["extractions_dir"]
+            a1_path = extractions_dir / "parts" / study_id / "agent1_extraction.json"
+            a2_path = extractions_dir / "parts" / study_id / "agent2_structured.json"
+
+            if not a1_path.exists() or not a2_path.exists():
+                raise FileNotFoundError(
+                    f"Missing artifacts for --from-agent3: need {a1_path} and {a2_path}"
+                )
+
+            with open(a1_path) as f:
+                agent1_output = json.load(f)
+            with open(a2_path) as f:
+                agent2_output = json.load(f)
+
+            # Filter figures by relevance
+            filtered_figures_info = []
+            if figure_metadata and not skip_figures and not no_figure_filter:
+                rel_threshold = config.get("figures", {}).get("relevance_threshold", 0.0)
+                if rel_threshold > 0:
+                    figure_metadata, filtered_figures_info = _filter_figures_by_relevance(
+                        figure_metadata, agent1_output, rel_threshold,
+                    )
+                    if filtered_figures_info:
+                        console.print(
+                            f"  Figures filtered: [green]{len(figure_metadata)} kept[/], "
+                            f"[dim]{len(filtered_figures_info)} skipped (score < {rel_threshold})[/]"
+                        )
+
+            # Agent 3
+            agent3_output = None
+            if figure_metadata and not skip_figures:
+                console.print("  [bold magenta]Agent 3[/] — Figure extraction …")
+                agent3_output = run_agent3(
+                    figure_metadata, agent1_output, agent2_output,
+                    paper_id, run_id, config, llm,
+                )
+                if filtered_figures_info:
+                    agent3_output["filtered_figures"] = filtered_figures_info
+                save_agent3_output(agent3_output, study_id, config)
+                result["agents_run"].append("agent3")
+                if agent3_output.get("db_insert_error"):
+                    console.print(
+                        f"  [yellow]Agent 3 ⚠ (DB insert failed: "
+                        f"{agent3_output['db_insert_error']})[/yellow]"
+                    )
+                else:
+                    console.print("  Agent 3 ✓")
+            elif skip_figures:
+                console.print("  [dim]Agent 3 skipped (--skip-figures)[/]")
+            else:
+                console.print("  [dim]Agent 3 skipped (no figures)[/]")
+
+            # Agent 4
+            console.print("  [bold magenta]Agent 4[/] — Validation & correction …")
+            agent4_output = run_agent4(
+                article, agent1_output, agent2_output, agent3_output,
+                paper_id, run_id, config, llm,
+                figure_metadata=figure_metadata if figure_metadata else None,
+            )
+            save_agent4_output(agent4_output, study_id, config)
+            result["agents_run"].append("agent4")
+            console.print("  Agent 4 ✓")
+
+            # Finalize
+            cost = llm.get_cost_summary()
+            result["cost"] = cost
+            update_extraction_run(
+                conn, run_id,
+                status="completed",
+                validation_report=json.dumps(agent4_output),
+                total_cost_usd=cost.get("total_estimated_cost_usd", 0),
+                completed_at=datetime.now(timezone.utc).isoformat(),
+            )
+            update_paper_latest_run(conn, paper_id, run_id)
+            conn.commit()
+            conn.close()
+            return result
+
         # ── 6. Agent 1 — Free extraction ───────────────────────────────
         console.print("  [bold magenta]Agent 1[/] — Free extraction …")
         agent1_output = run_agent1(article, study_id, config, llm)
@@ -334,7 +430,13 @@ def run_pipeline_from_file(
                 agent3_output["filtered_figures"] = filtered_figures_info
             save_agent3_output(agent3_output, study_id, config)
             result["agents_run"].append("agent3")
-            console.print("  Agent 3 ✓")
+            if agent3_output.get("db_insert_error"):
+                console.print(
+                    f"  [yellow]Agent 3 ⚠ (DB insert failed: "
+                    f"{agent3_output['db_insert_error']})[/yellow]"
+                )
+            else:
+                console.print("  Agent 3 ✓")
         elif skip_figures:
             console.print("  [dim]Agent 3 skipped (--skip-figures)[/]")
         else:
@@ -523,8 +625,19 @@ Examples:
         "--dry-run", action="store_true",
         help="Show what would be done without calling LLM APIs",
     )
+    parser.add_argument(
+        "--from-agent3", action="store_true",
+        help="Resume from Agent 3: load cached Agent 1 & 2 artifacts, re-run Agents 3 & 4",
+    )
 
     args = parser.parse_args()
+
+    # Mutual exclusion guards for --from-agent3
+    if args.from_agent3:
+        if args.force:
+            parser.error("--from-agent3 and --force are mutually exclusive (from-agent3 needs Agent 2's DB data)")
+        if args.validate_only:
+            parser.error("--from-agent3 and --validate-only are mutually exclusive")
 
     # ── Build job list ──────────────────────────────────────────────────
     jobs: list[dict] = []
@@ -574,6 +687,8 @@ Examples:
         flags.append("dry-run")
     if args.no_figure_filter:
         flags.append("no-figure-filter")
+    if args.from_agent3:
+        flags.append("from-agent3")
 
     console.print(
         Panel(
@@ -598,6 +713,7 @@ Examples:
             validate_only=args.validate_only,
             dry_run=args.dry_run,
             no_figure_filter=args.no_figure_filter,
+            from_agent3=args.from_agent3,
         )
         results.append(r)
 
