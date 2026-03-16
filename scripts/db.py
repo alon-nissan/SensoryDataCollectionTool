@@ -446,6 +446,7 @@ def delete_paper_data(conn: sqlite3.Connection, paper_id: str):
     conn.execute("DELETE FROM samples WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM stimuli WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM experiments WHERE paper_id = ?", (paper_id,))
+    conn.execute("UPDATE papers SET latest_run_id = NULL WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM extraction_runs WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM papers WHERE paper_id = ?", (paper_id,))
     conn.commit()

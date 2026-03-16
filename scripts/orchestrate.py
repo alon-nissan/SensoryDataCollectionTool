@@ -203,6 +203,7 @@ def run_pipeline_from_file(
             console.print("  [red]--force: deleting existing data …[/]")
             delete_paper_data(conn, paper_id)
             conn.commit()
+            existing = None  # paper was deleted — treat as new
 
         if from_agent3:
             if not existing:
@@ -393,9 +394,16 @@ def run_pipeline_from_file(
         console.print("  [bold magenta]Agent 2[/] — Structuring …")
         agent2_output = run_agent2(agent1_output, paper_id, config, llm)
         save_agent2_output(agent2_output, study_id, config)
-        commit_agent2_to_db(agent2_output, paper_id, run_id, config)
+        agent2_db_result = commit_agent2_to_db(agent2_output, paper_id, run_id, config)
         result["agents_run"].append("agent2")
-        console.print("  Agent 2 ✓")
+        if agent2_db_result.get("db_insert_error"):
+            console.print(f"  Agent 2 [yellow]⚠ partial — DB error: "
+                          f"{agent2_db_result['db_insert_error']}[/yellow]")
+        elif agent2_db_result.get("dropped"):
+            console.print(f"  Agent 2 ✓ [yellow]({len(agent2_db_result['dropped'])} "
+                          f"entities skipped)[/yellow]")
+        else:
+            console.print("  Agent 2 ✓")
 
         # ── 7b. Filter figures by relevance ─────────────────────────────
         filtered_figures_info = []
