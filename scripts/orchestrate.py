@@ -368,7 +368,7 @@ def run_pipeline_from_file(
         elapsed = time.time() - t0
         console.print(
             f"  [bold green]✓ Done[/] in {elapsed:.1f}s — "
-            f"${cost.get('total_cost', 0):.4f}"
+            f"${cost.get('total_estimated_cost_usd', 0):.4f}"
         )
 
     except Exception as exc:
@@ -611,7 +611,7 @@ Examples:
                 f"[bold green]Pipeline complete[/] — "
                 f"paper_id: {results[0]['paper_id']}\n"
                 f"Agents: {', '.join(results[0].get('agents_run', []))}\n"
-                f"Total cost: ${cost.get('total_cost', 0):.4f}",
+                f"Total cost: ${cost.get('total_estimated_cost_usd', 0):.4f}",
                 border_style="green",
             )
         )
