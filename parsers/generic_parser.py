@@ -436,6 +436,9 @@ class GenericParser(BaseParser):
 
     # ── Figure extraction ───────────────────────────────────────
 
+    # Classes that indicate non-figure images (graphical abstracts, overlays)
+    _SKIP_FIGURE_CLASSES = {"abstract", "graphical-abstract", "toc"}
+
     def extract_figures(self, soup, base_url: str = "") -> list[ParsedFigure]:
         figures = []
         seen_urls = set()
@@ -445,41 +448,86 @@ class GenericParser(BaseParser):
         fig_divs = soup.find_all(
             "div", class_=lambda c: c and "fig" in str(c).lower()
         )
-        # Merge, avoiding duplicates
+        # Merge, skipping containers that are descendants of already-added ones
+        # or that represent non-figure content (graphical abstracts, hidden popups)
         all_containers = list(fig_containers)
         for d in fig_divs:
-            if d not in all_containers and not any(d in f.descendants for f in fig_containers):
-                all_containers.append(d)
+            classes_str = " ".join(d.get("class", [])).lower()
+            # Skip graphical abstract / TOC containers
+            if any(skip in classes_str for skip in self._SKIP_FIGURE_CLASSES):
+                continue
+            # Skip if descendant of any container already collected
+            if any(d in c.descendants for c in all_containers):
+                continue
+            all_containers.append(d)
 
-        for i, fig in enumerate(all_containers, 1):
+        fig_count = 0
+        for fig in all_containers:
             img = fig.find("img")
             if not img:
                 continue
 
             url = img.get("src", "") or img.get("data-src", "")
-            if not url or url in seen_urls:
+            if not url:
                 continue
+
+            # Deduplicate by exact URL
+            if url in seen_urls:
+                continue
+
+            # Deduplicate multi-resolution variants of the same figure.
+            # Publishers serve thumbnails (-550.jpg) alongside full-res (.png).
+            # Normalize: strip resolution suffixes and extension, then compare.
+            url_key = self._normalize_figure_url(url)
+            existing_idx = None
+            for idx, (existing_fig, existing_key) in enumerate(
+                [(f, self._normalize_figure_url(f.image_url)) for f in figures]
+            ):
+                if url_key and existing_key and url_key == existing_key:
+                    existing_idx = idx
+                    break
+
+            if existing_idx is not None:
+                # Prefer higher-resolution version (larger file name = no -550 suffix)
+                if "-550" not in url and "-550" in figures[existing_idx].image_url:
+                    old_url = figures[existing_idx].image_url
+                    figures[existing_idx] = ParsedFigure(
+                        figure_id=figures[existing_idx].figure_id,
+                        caption=figures[existing_idx].caption,
+                        image_url=url if not url.startswith("http") and base_url
+                                  else (urljoin(base_url, url) if base_url and not url.startswith("http") else url),
+                        surrounding_text=figures[existing_idx].surrounding_text,
+                    )
+                    seen_urls.add(url)
+                continue
+
             seen_urls.add(url)
 
             if url and not url.startswith("http"):
                 url = urljoin(base_url, url) if base_url else url
 
-            # Caption: try figcaption, then any child with "caption" class, then alt text
+            # Caption: try figcaption, then child with "caption"/"description" class, then alt text
             caption = ""
             cap_el = fig.find("figcaption")
             if not cap_el:
-                cap_el = fig.find(class_=lambda c: c and "caption" in str(c).lower())
+                cap_el = fig.find(class_=lambda c: c and (
+                    "caption" in str(c).lower() or "description" in str(c).lower()
+                ))
             if cap_el:
                 caption = self._clean_text(cap_el.get_text())
             if not caption:
-                caption = img.get("alt", f"Figure {i}")
+                caption = img.get("alt", "")
+
+            fig_count += 1
+            if not caption:
+                caption = f"Figure {fig_count}"
 
             # Surrounding text for context
             prev_p = fig.find_previous("p")
             surrounding = self._clean_text(prev_p.get_text())[:500] if prev_p else ""
 
             figures.append(ParsedFigure(
-                figure_id=f"figure_{i}",
+                figure_id=f"figure_{fig_count}",
                 caption=caption,
                 image_url=url,
                 surrounding_text=surrounding,
@@ -487,7 +535,7 @@ class GenericParser(BaseParser):
 
         # Strategy 2: Standalone <img> tags (if no figures found via containers)
         if not figures:
-            for i, img in enumerate(soup.find_all("img"), 1):
+            for img in soup.find_all("img"):
                 url = img.get("src", "") or img.get("data-src", "")
                 if not url or url in seen_urls:
                     continue
@@ -503,13 +551,31 @@ class GenericParser(BaseParser):
                 if not url.startswith("http"):
                     url = urljoin(base_url, url) if base_url else url
 
+                fig_count += 1
                 figures.append(ParsedFigure(
-                    figure_id=f"figure_{i}",
-                    caption=img.get("alt", f"Figure {i}"),
+                    figure_id=f"figure_{fig_count}",
+                    caption=img.get("alt", f"Figure {fig_count}"),
                     image_url=url,
                 ))
 
         return figures
+
+    @staticmethod
+    def _normalize_figure_url(url: str) -> str:
+        """Normalize a figure URL to detect multi-resolution duplicates.
+
+        Strips resolution suffixes (e.g., '-550') and file extensions so that
+        'nutrients-10-01632-g001-550.jpg' and 'nutrients-10-01632-g001.png'
+        both normalize to 'nutrients-10-01632-g001'.
+        """
+        # Get just the filename
+        name = url.rsplit("/", 1)[-1] if "/" in url else url
+        # Strip extension
+        name = name.rsplit(".", 1)[0] if "." in name else name
+        # Strip common resolution suffixes: -550, -1024, _small, _large, etc.
+        name = re.sub(r'[-_]\d{3,4}$', '', name)
+        name = re.sub(r'[-_](small|large|thumb|preview|hi-res|hires)$', '', name, flags=re.IGNORECASE)
+        return name.lower()
 
     def _extract_xml_figures(self, soup) -> list[ParsedFigure]:
         figures = []
