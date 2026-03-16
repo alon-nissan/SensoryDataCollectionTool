@@ -45,6 +45,7 @@ from scripts.llm_extract import LLMClient
 from scripts.init_db import init_database
 from scripts.db import (
     get_db,
+    insert_paper,
     create_extraction_run,
     update_extraction_run,
     update_paper_latest_run,
@@ -202,6 +203,15 @@ def run_pipeline_from_file(
             delete_paper_data(conn, paper_id)
             conn.commit()
 
+        # Ensure paper row exists so extraction_runs FK is satisfied
+        if not existing:
+            insert_paper(conn, {
+                "paper_id": paper_id,
+                "doi": doi or None,
+                "title": getattr(article, "title", None),
+                "validation_status": "pending",
+            })
+
         # Model & prompt versions for tracking
         model_versions = {
             "agent1": config.get("llm", {}).get("agent1_model", ""),
@@ -220,7 +230,7 @@ def run_pipeline_from_file(
         if article.figures and not skip_figures:
             console.print(f"  Downloading {len(article.figures)} figures …")
             raw_figs = [
-                {"url": fig.url, "caption": fig.caption, "figure_id": fig.figure_id}
+                {"image_url": fig.image_url, "caption": fig.caption, "figure_id": fig.figure_id}
                 for fig in article.figures
             ]
             figure_metadata = download_figures(
@@ -233,9 +243,9 @@ def run_pipeline_from_file(
         if validate_only:
             console.print("  [cyan]--validate-only: loading existing artifacts …[/]")
             extractions_dir = ROOT_DIR / config["paths"]["extractions_dir"]
-            a1_path = extractions_dir / study_id / "agent1.json"
-            a2_path = extractions_dir / study_id / "agent2.json"
-            a3_path = extractions_dir / study_id / "agent3.json"
+            a1_path = extractions_dir / "parts" / study_id / "agent1_extraction.json"
+            a2_path = extractions_dir / "parts" / study_id / "agent2_structured.json"
+            a3_path = extractions_dir / "parts" / study_id / "agent3_figures.json"
 
             if not a1_path.exists() or not a2_path.exists():
                 raise FileNotFoundError(
@@ -268,7 +278,7 @@ def run_pipeline_from_file(
                 conn, run_id,
                 status="completed",
                 validation_report=json.dumps(agent4_output),
-                total_cost_usd=cost.get("total_cost", 0),
+                total_cost_usd=cost.get("total_estimated_cost_usd", 0),
                 completed_at=datetime.now(timezone.utc).isoformat(),
             )
             update_paper_latest_run(conn, paper_id, run_id)
@@ -347,7 +357,7 @@ def run_pipeline_from_file(
             conn, run_id,
             status="completed",
             validation_report=json.dumps(agent4_output),
-            total_cost_usd=cost.get("total_cost", 0),
+            total_cost_usd=cost.get("total_estimated_cost_usd", 0),
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
         update_paper_latest_run(conn, paper_id, run_id)
@@ -420,7 +430,7 @@ def _print_summary(results: list[dict]) -> None:
         pid = r.get("paper_id") or "—"
         status = r.get("status", "?")
         agents = ", ".join(r.get("agents_run", [])) or "—"
-        cost_val = r.get("cost", {}).get("total_cost", 0)
+        cost_val = r.get("cost", {}).get("total_estimated_cost_usd", 0)
         total_cost += cost_val
 
         if status == "ok":

@@ -9,7 +9,7 @@ llm:
   agent4_model: "claude-sonnet-4-6"   # Validation & correction
 
   # Shared settings
-  max_tokens: 8192
+  max_tokens: 32768
   temperature: 0.0
   max_retries: 3
   retry_delay_seconds: 5

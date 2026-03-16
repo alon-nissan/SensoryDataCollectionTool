@@ -22,7 +22,7 @@ data/figures/
 data/extractions/
 data/_cookies/
 data/_debug/
-sensory_index.db
+sensory_data.db
 
 # OS files
 .DS_Store

@@ -26,8 +26,8 @@ class LLMClient:
 
     # Approximate pricing per 1M tokens (as of early 2025)
     PRICING = {
-        "claude-sonnet-4-20250514": {"input": 3.0, "output": 15.0},
-        "claude-opus-4-20250514": {"input": 15.0, "output": 75.0},
+        "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+        "claude-opus-4-6": {"input": 15.0, "output": 75.0},
     }
 
     def __init__(self, config: dict = None):
@@ -123,6 +123,8 @@ class LLMClient:
         messages = [{"role": "user", "content": prompt}]
         return self._call_api_messages(messages, model=model, system=system)
 
+    MAX_CONTINUATIONS = 3  # Cap continuation attempts to avoid infinite loops
+
     def _call_api_messages(self, messages: list, model: str, system: str = None) -> str:
         """Call the API with structured messages and retry logic."""
         for attempt in range(self.max_retries):
@@ -136,12 +138,44 @@ class LLMClient:
                 if system:
                     kwargs["system"] = system
 
-                response = self.client.messages.create(**kwargs)
-
-                # Track usage
+                with self.client.messages.stream(**kwargs) as stream:
+                    response = stream.get_final_message()
                 self._track_usage(model, response.usage)
+                result_text = response.content[0].text
 
-                return response.content[0].text
+                # Handle truncation: continue generating if max_tokens hit
+                continuations = 0
+                while response.stop_reason == "max_tokens" and continuations < self.MAX_CONTINUATIONS:
+                    continuations += 1
+                    print(f"  ⚠ Response truncated at max_tokens, requesting continuation ({continuations}/{self.MAX_CONTINUATIONS})...")
+                    # Strip any trailing code fence from the truncated response
+                    result_text = re.sub(r'\n?```\s*$', '', result_text)
+                    continuation_messages = messages + [
+                        {"role": "assistant", "content": result_text},
+                        {"role": "user", "content": "Continue exactly from where you left off. Do not repeat any text."},
+                    ]
+                    cont_kwargs = {
+                        "model": model,
+                        "max_tokens": self.max_tokens,
+                        "temperature": self.temperature,
+                        "messages": continuation_messages,
+                    }
+                    if system:
+                        cont_kwargs["system"] = system
+
+                    with self.client.messages.stream(**cont_kwargs) as stream:
+                        response = stream.get_final_message()
+                    self._track_usage(model, response.usage)
+                    # Strip code fences the model may wrap the continuation in
+                    continuation_text = response.content[0].text
+                    continuation_text = re.sub(r'^```(?:json)?\s*\n?', '', continuation_text)
+                    continuation_text = re.sub(r'\n?```\s*$', '', continuation_text)
+                    result_text += continuation_text
+
+                if response.stop_reason == "max_tokens":
+                    print(f"  ⚠ Response still truncated after {self.MAX_CONTINUATIONS} continuations — output may be incomplete")
+
+                return result_text
 
             except Exception as e:
                 error_str = str(e)
@@ -174,10 +208,10 @@ class LLMClient:
 
     def _parse_json(self, text: str) -> dict:
         """Parse JSON from LLM response, handling markdown code blocks."""
-        # Try to extract JSON from code blocks
-        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
-        if json_match:
-            text = json_match.group(1)
+        # Strip ALL code fence markers unconditionally
+        # (handles both single-block and stitched multi-block continuations)
+        text = re.sub(r'```(?:json)?\s*\n?', '', text)
+        text = re.sub(r'\n?```', '', text)
 
         # Try direct parse
         try:
@@ -221,13 +255,22 @@ class LLMClient:
             ".webp": "image/webp",
         }.get(ext, "image/png")
 
+    def _get_pricing(self, model: str) -> dict:
+        """Look up pricing for a model, falling back to prefix match."""
+        if model in self.PRICING:
+            return self.PRICING[model]
+        for key in self.PRICING:
+            if model.startswith(key) or key.startswith(model):
+                return self.PRICING[key]
+        return {"input": 3.0, "output": 15.0}
+
     def get_cost_summary(self) -> dict:
         """Get a summary of API usage and estimated costs."""
         total_cost = 0.0
         model_costs = {}
 
         for model, usage in self.costs_by_model.items():
-            pricing = self.PRICING.get(model, {"input": 3.0, "output": 15.0})
+            pricing = self._get_pricing(model)
             input_cost = (usage["input_tokens"] / 1_000_000) * pricing["input"]
             output_cost = (usage["output_tokens"] / 1_000_000) * pricing["output"]
             model_cost = input_cost + output_cost
