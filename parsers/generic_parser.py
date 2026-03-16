@@ -74,6 +74,15 @@ class GenericParser(BaseParser):
         ("p", {"class_": "chapter-para"}),               # OUP older
     ]
 
+    # Article body selectors — used to scope table/figure search to main content
+    _ARTICLE_BODY_SELECTORS = [
+        ("div", {"class_": "article-body"}),      # OUP
+        ("div", {"id": "body"}),                   # Elsevier ScienceDirect
+        ("article", {}),                           # Springer, MDPI, generic HTML5
+        ("div", {"class_": "c-article-body"}),     # Springer Nature
+        ("main", {}),                              # HTML5 fallback
+    ]
+
     # Elsevier XML namespaces
     _ELSEVIER_NS = {
         "ce": "http://www.elsevier.com/xml/common/dtd",
@@ -364,21 +373,47 @@ class GenericParser(BaseParser):
 
         return sections
 
+    # ── Article body scoping ───────────────────────────────────
+
+    def _find_article_body(self, soup):
+        """Return the article content container, or soup itself as fallback."""
+        for tag, attrs in self._ARTICLE_BODY_SELECTORS:
+            el = soup.find(tag, **attrs)
+            if el:
+                return el
+        return soup
+
     # ── Table extraction ────────────────────────────────────────
 
     def extract_tables(self, soup) -> list[ParsedTable]:
+        root = self._find_article_body(soup)
         tables = []
-        for i, table_el in enumerate(soup.find_all("table"), 1):
-            caption = self._find_table_caption(table_el, i)
+        seen_fingerprints: set[tuple] = set()
+
+        for table_el in root.find_all("table"):
             headers, rows = self._parse_html_table(table_el)
-            if headers:
-                tables.append(ParsedTable(
-                    table_id=f"table_{i}",
-                    caption=caption,
-                    headers=headers,
-                    rows=rows,
-                    raw_html=str(table_el),
-                ))
+            if not headers:
+                continue
+
+            # Content-hash dedup: fingerprint from headers + first 3 rows
+            row_vals = tuple(
+                tuple(r.get(h, "") for h in headers)
+                for r in rows[:3]
+            )
+            fingerprint = (tuple(headers), row_vals)
+            if fingerprint in seen_fingerprints:
+                continue
+            seen_fingerprints.add(fingerprint)
+
+            idx = len(tables) + 1
+            caption = self._find_table_caption(table_el, idx)
+            tables.append(ParsedTable(
+                table_id=f"table_{idx}",
+                caption=caption,
+                headers=headers,
+                rows=rows,
+                raw_html=str(table_el),
+            ))
         return tables
 
     def _find_table_caption(self, table_el, index: int) -> str:
