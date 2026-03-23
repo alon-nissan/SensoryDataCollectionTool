@@ -1,4 +1,4 @@
-# Sensory Data Extraction Pipeline — Configuration (v4)
+# Sensory Data Extraction Pipeline — Configuration (v5)
 
 # LLM Settings
 llm:
@@ -16,10 +16,10 @@ llm:
 
 # Prompt Versions (for extraction_runs tracking)
 prompt_versions:
-  agent1: "v1.2"
-  agent2: "v1.1"
-  agent3: "v1.1"
-  agent4: "v1.1"
+  agent1: "v2.0"
+  agent2: "v2.0"
+  agent3: "v2.0"
+  agent4: "v2.0"
 
 # File Paths
 paths:

@@ -270,13 +270,13 @@ def migrate(v4_path: Path, v5_path: Path, config: dict, dry_run: bool = False):
                 "components_json, base_matrix, "
                 "is_control, attribute_raw, attribute_normalized, "
                 "value, value_type, error_value, error_type, "
-                "n, source_type, source_location, extraction_confidence, run_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "source_type, source_location, extraction_confidence, run_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (r["paper_id"], r["experiment_id"], substance_name,
                  components_json, base_matrix, is_control,
                  r["attribute_raw"], r["attribute_normalized"],
                  r["value"], r["value_type"],
-                 r["error_value"], r["error_type"], r["n"],
+                 r["error_value"], r["error_type"],
                  r["source_type"], r["source_location"],
                  r["extraction_confidence"], r["run_id"]),
             )

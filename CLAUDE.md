@@ -122,7 +122,7 @@ File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.p
 ### Key Configuration
 
 - `.env` — `ANTHROPIC_API_KEY` (only key needed)
-- `config.yaml` — per-agent model names, prompt versions, file paths, extraction settings (confidence threshold, spot-check fraction, etc.), and `table_extraction` section (vision fallback model, confidence thresholds)
+- `config.yaml` — per-agent model names, prompt versions, file paths, extraction settings (confidence threshold, spot-check fraction, etc.), and `table_extraction` section (vision fallback model, confidence thresholds). **IMPORTANT: When modifying any prompt file in `prompts/`, always bump the corresponding version in `config.yaml → prompt_versions`. The pipeline records these in `extraction_runs` for reproducibility.**
 - `vocabulary/attribute_map.json` — maps raw sensory attribute names to canonical forms
 - `vocabulary/substances_seed.json` — seed data for the `substances` table
 

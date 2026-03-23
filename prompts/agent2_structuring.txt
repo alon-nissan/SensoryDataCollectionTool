@@ -13,14 +13,13 @@ Fields per observation:
   substance           TEXT   — substance name: "sucrose", "citric_acid"
   components          ARRAY  — full sample composition as JSON array (see below)
   base_matrix         TEXT   — carrier medium: "distilled water", "whole milk" (null for derived metrics)
-  is_control          BOOL   — true if control/blank/reference sample
+  is_control          BOOL   — include only for control/blank/reference samples (omit otherwise)
   attribute           TEXT   — attribute name exactly as in paper
   attribute_normalized TEXT  — normalized to vocabulary (see below)
   value               REAL   — the numeric value
   value_type          TEXT   — "raw_mean", "raw_median", "relative_pct", "derived_param", "threshold", "frequency_pct", "dominance_rate"
   error               REAL   — error/variability value (null if not reported)
   error_type          TEXT   — "sd", "se", "ci95_lower", "ci95_upper" (null if not reported)
-  n                   INTEGER — number of panelists/observations (null if not reported)
   source              TEXT   — specific location: "Table 2", "Figure 3a", "Section 3.2"
   source_type         TEXT   — "table", "figure", "text", "supplementary"
   confidence          TEXT   — "high", "medium", "low"

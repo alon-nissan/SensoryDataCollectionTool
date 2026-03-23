@@ -118,7 +118,7 @@ def insert_observation(conn: sqlite3.Connection, obs: dict) -> int:
         "components_json", "base_matrix",
         "is_control", "attribute_raw", "attribute_normalized",
         "value", "value_type", "error_value",
-        "error_type", "n", "source_type", "source_location",
+        "error_type", "source_type", "source_location",
         "extraction_confidence", "run_id",
     ]
     values = {c: obs.get(c) for c in cols}
@@ -146,7 +146,7 @@ def insert_observations_batch(conn: sqlite3.Connection, observations: list[dict]
         "components_json", "base_matrix",
         "is_control", "attribute_raw", "attribute_normalized",
         "value", "value_type", "error_value",
-        "error_type", "n", "source_type", "source_location",
+        "error_type", "source_type", "source_location",
         "extraction_confidence", "run_id",
     ]
 

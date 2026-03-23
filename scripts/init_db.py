@@ -70,7 +70,6 @@ CREATE TABLE IF NOT EXISTS observations (
     value_type TEXT,
     error_value REAL,
     error_type TEXT,
-    n INTEGER,
     source_type TEXT,
     source_location TEXT,
     extraction_confidence TEXT,

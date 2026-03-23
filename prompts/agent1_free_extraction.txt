@@ -4,8 +4,8 @@ IMPORTANT PRINCIPLES:
 - Extract EVERY reported number — means, SDs, SEs, confidence intervals, p-values, F-statistics, sample sizes, effect sizes, percentages.
 - Always note data_source for every piece of data: "Table 1", "Figure 2A", "text p.5", "inline text in Results", "Materials and Methods section", etc.
 - Look for multiple experiments (Experiment 1, Study A/B, Phase 1/2, Part I/II). Each gets its own entry in the experiments array.
-- For dose-response data: each concentration is a separate stimulus entry.
-- Capture ALL compounds in stimulus composition with their concentrations and units (M, mM, µM, g/L, % w/v, % w/w, ppm, mg/L, etc.).
+- For dose-response data: each concentration is a separate sample entry (not a separate stimulus).
+- Capture ALL compounds in sample composition with their concentrations and units (M, mM, µM, g/L, % w/v, % w/w, ppm, mg/L, etc.).
 - Include controls (water, blank, vehicle) and reference samples (e.g., standard solutions).
 - Note any data available only in figures (not tables) — these will be extracted by a vision agent later. Still record what you can infer from figure captions and in-text references to figures.
 - If information is not reported in the paper, omit the field rather than guessing. Do NOT fabricate values.
@@ -94,22 +94,31 @@ Produce a JSON object with these top-level sections:
 
       "stimuli": [
         {
-          "label": "stimulus label as used in paper (e.g., 'S1', '0.1 M sucrose', 'Sample A')",
+          "name": "substance name (e.g., 'sucrose', 'citric acid', 'capsaicin')",
           "description": "human-readable description",
-          "composition": {
-            "compound_name": {
-              "concentration": number,
-              "unit": "M / mM / µM / g/L / % w/v / % w/w / ppm / mg/L / etc.",
-              "role": "tastant / odorant / suppressor / enhancer / solvent / matrix / other"
-            }
-          },
-          "is_control": true/false,
-          "is_mixture": true/false,
-          "type": "solution / food / model_food / aroma / other",
-          "preparation": "how the stimulus was prepared",
           "supplier": "chemical supplier if reported (e.g., Sigma-Aldrich)",
           "purity": "purity grade if reported (e.g., ≥99%)",
-          "form": "powder / liquid / crystal / gel / etc."
+          "form": "powder / liquid / crystal / gel / etc.",
+          "cas_number": "CAS number if reported"
+        }
+      ],
+
+      "samples": [
+        {
+          "label": "sample label as used in paper (e.g., '0.3 M sucrose', 'Sample A', 'control')",
+          "composition": [
+            {
+              "stimulus": "stimulus name matching stimuli array (e.g., 'sucrose')",
+              "concentration": "number",
+              "unit": "M / mM / µM / g/L / % w/v / % w/w / ppm / mg/L / etc.",
+              "role": "tastant / odorant / suppressor / enhancer / other"
+            }
+          ],
+          "base_matrix": "carrier medium (e.g., 'distilled water', 'whole milk')",
+          "is_control": "true/false",
+          "is_mixture": "true/false",
+          "type": "solution / food / model_food / aroma / other",
+          "preparation": "how the sample was prepared"
         }
       ],
 
@@ -120,7 +129,7 @@ Produce a JSON object with these top-level sections:
           "measure_type": "mean / median / frequency / proportion / dominance_rate / percentage / ranking / other",
           "values": [
             {
-              "stimulus": "stimulus label matching stimuli array",
+              "sample": "sample label matching samples array",
               "value": number,
               "sd": "standard deviation if reported",
               "se": "standard error if reported",
@@ -137,6 +146,7 @@ Produce a JSON object with these top-level sections:
 
       "derived_metrics": [
         {
+          "stimulus": "stimulus name this metric describes (e.g., 'sucrose')",
           "metric_type": "power_law_exponent / EC50 / IC50 / detection_threshold / recognition_threshold / PSE / JND / potency_ratio / growth_rate / slope / R_squared / AUC / Weber_fraction / other",
           "description": "what this metric represents",
           "value": number,
@@ -196,8 +206,8 @@ Produce a JSON object with these top-level sections:
 
 CONCENTRATION EXTRACTION (CRITICAL):
 When concentration series appear in the main paper tables (e.g., Table 2 listing
-concentrations in % w/v, M, mM, ppm, etc.), ALWAYS extract them as part of the
-stimulus/sample composition — even if supplementary data exists with different units.
+concentrations in % w/v, M, mM, ppm, etc.), ALWAYS extract them in the sample
+composition array — even if supplementary data exists with different units.
 Record both the main-text value and any supplementary reference. Never leave
 concentration as null when the paper provides it in any form. If a concentration
 appears in one unit in the main text and another unit in the supplement, extract BOTH
@@ -211,7 +221,7 @@ ADDITIONAL GUIDELINES:
 
 1. SENSORY DATA FLEXIBILITY: The sensory_data array should adapt to whatever data the paper presents. This could be:
    - Dose-response curves (intensity vs. concentration)
-   - Attribute profiles (multiple attributes per stimulus)
+   - Attribute profiles (multiple attributes per sample)
    - CATA check-all-that-apply frequencies
    - TDS temporal dominance rates at time points
    - Hedonic ratings (liking/preference scores)
@@ -222,7 +232,7 @@ ADDITIONAL GUIDELINES:
 
 2. MULTIPLE DATA SOURCES: A single result may appear in multiple places (e.g., a mean in both a table and a figure). Record it once with the most precise source (prefer tables over figures, as tables give exact numbers).
 
-3. STIMULUS COMPOSITION: Be thorough. If a paper tests "0.1 M sucrose + 0.001 M citric acid", the composition object should have entries for both compounds with their concentrations and units.
+3. SAMPLE COMPOSITION: Be thorough. If a paper tests "0.1 M sucrose + 0.001 M citric acid", that is one sample with two entries in its composition array, each referencing a stimulus with its concentration and unit.
 
 4. STATISTICAL DETAIL: For ANOVA tables, extract every row. For post-hoc tests, record all pairwise comparisons and their significance levels if reported.
 

@@ -207,23 +207,6 @@ def _run_level1_checks(observations: list, experiments: list) -> list:
                     "needs_llm_review": True,
                 })
 
-    # Check: missing n values (infer from siblings)
-    n_values = [obs.get("n") for obs in observations if obs.get("n") is not None]
-    if n_values:
-        from collections import Counter
-        n_counts = Counter(n_values)
-        most_common_n = n_counts.most_common(1)[0][0]
-        for i, obs in enumerate(observations):
-            if obs.get("n") is None and obs.get("value_type") != "derived_param":
-                corrections.append({
-                    "observation_index": i,
-                    "issue": "missing_n_inferred",
-                    "description": f"Missing n, inferred as {most_common_n} from siblings",
-                    "suggested_value": most_common_n,
-                    "field": "n",
-                    "auto_corrected": True,
-                })
-
     return corrections
 
 
