@@ -23,6 +23,7 @@ data/extractions/
 data/_cookies/
 data/_debug/
 sensory_data.db*
+*.db
 
 # Analysis outputs
 analysis/

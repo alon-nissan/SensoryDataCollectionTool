@@ -211,13 +211,13 @@ def run_pipeline_from_file(
                     f"--from-agent3 requires Agent 2 to have run previously. "
                     f"No existing data found for paper_id={paper_id}."
                 )
-            # Delete only figure-sourced results; keep Agent 2's data intact
+            # Delete only figure-sourced observations; keep Agent 2's data intact
             conn.execute(
-                "DELETE FROM results WHERE paper_id = ? AND source_type = 'figure'",
+                "DELETE FROM observations WHERE paper_id = ? AND source_type = 'figure'",
                 (paper_id,),
             )
             conn.commit()
-            console.print("  [cyan]--from-agent3: cleared previous figure results[/cyan]")
+            console.print("  [cyan]--from-agent3: cleared previous figure observations[/cyan]")
 
         # Ensure paper row exists so extraction_runs FK is satisfied
         if not existing:
@@ -464,9 +464,17 @@ def run_pipeline_from_file(
         # ── 10. Finalize extraction run ─────────────────────────────────
         cost = llm.get_cost_summary()
         result["cost"] = cost
+
+        # Mark as partial if any agent had a DB insert error
+        has_db_error = (
+            agent2_db_result.get("db_insert_error")
+            or (agent3_output and agent3_output.get("db_insert_error"))
+        )
+        final_status = "partial" if has_db_error else "completed"
+
         update_extraction_run(
             conn, run_id,
-            status="completed",
+            status=final_status,
             validation_report=json.dumps(agent4_output),
             total_cost_usd=cost.get("total_estimated_cost_usd", 0),
             completed_at=datetime.now(timezone.utc).isoformat(),

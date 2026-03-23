@@ -30,6 +30,7 @@ python scripts/orchestrate.py --file-list papers.csv
 --skip-figures     # Skip figure extraction (Agent 3)
 --force            # Re-extract even if output exists
 --validate-only    # Re-run validation (Agent 4) only
+--from-agent3      # Resume from Agent 3 (load cached Agent 1 & 2 artifacts)
 --dry-run          # Show what would be done
 
 # Run individual pipeline steps
@@ -61,23 +62,24 @@ File type detection (`scripts/parse_article.py: detect_file_type()`) routes `.pd
 
 ### Two-Layer Data Storage
 
-- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store. 10 relational tables: `papers`, `experiments`, `substances`, `substance_aliases`, `stimuli`, `samples`, `sample_components`, `results`, `extraction_runs`, `unit_conversions`.
-- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs preserved for audit/debugging.
+- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store. 7 relational tables (v5 schema).
+- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs + peripheral context JSON preserved for audit/debugging.
 
-### Database Schema (v4)
+### Database Schema (v5)
+
+Flat, denormalized schema. The old 5-level FK chain (substance → stimulus → sample_component → sample → result) was replaced with a single `observations` table. Peripheral metadata (panel info, sourcing, design) lives in JSON documents per paper.
 
 | Table | Purpose |
 |---|---|
-| `papers` | One row per paper (metadata, DOI, food category, validation status) |
-| `experiments` | One per experiment within a paper (method, scale, panel) |
+| `papers` | One row per paper (paper_id, DOI, title, year, journal, validation_status) |
+| `experiments` | One per experiment within a paper (method, scale_type, scale_range) |
+| `observations` | Core data: substance × attribute → value. Denormalized — each row is self-contained with substance_name, components_json (full composition array with concentrations), base_matrix, attribute, value, error, source. Supports sample-level, mixture (multi-element components_json), and stimulus-level derived metrics (components_json=NULL, value_type='derived_param'). |
 | `substances` | Global chemical entity registry, cross-paper (normalized name, CAS, SMILES) |
 | `substance_aliases` | Maps variant names → canonical `substance_id` |
-| `stimuli` | Paper-specific sourced instances of substances (supplier, purity, form) |
-| `samples` | What panelists actually tasted (label, base matrix, control flag) |
-| `sample_components` | Junction table: sample ↔ stimulus with concentration + canonical units |
-| `results` | Core data: sample × attribute → value (with error, source, confidence) |
 | `extraction_runs` | Audit trail: prompt versions, models, cost, validation report |
 | `unit_conversions` | Deterministic unit conversion rules (seeded by `init_db.py`) |
+
+Key design: LLM agents produce flat observation rows + peripheral JSON. Deterministic Python code handles ID generation (`{paper_id}__exp{N}`), substance registry resolution, and DB commits. No IDs cross-referenced by the LLM.
 
 ### Parser Hierarchy
 
@@ -93,8 +95,8 @@ File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.p
 `LLMClient` in `scripts/llm_extract.py` wraps the Anthropic API with retry logic and cost tracking. Four specialized agents with prompts in `prompts/`:
 
 - **Agent 1 — Free extraction** (`agent1_extract.py`, Sonnet): Reads parsed article and produces a rich, flexible JSON capturing all sensory data without schema constraints.
-- **Agent 2 — Structuring** (`agent2_structure.py`, Sonnet): Transforms Agent 1's JSON into structured rows matching the 10-table SQLite schema. Resolves substances via `substance_resolver.py`.
-- **Agent 3 — Figure extraction** (`agent3_figures.py`, Opus, vision): Extracts data from figure images using Claude's vision capability. Uses Agent 2's sample IDs for consistency.
+- **Agent 2 — Structuring** (`agent2_structure.py`, Sonnet): Transforms Agent 1's JSON into flat observation rows + peripheral context JSON. No ID generation — uses simple experiment labels (exp1, exp2) and substance names as text.
+- **Agent 3 — Figure extraction** (`agent3_figures.py`, Opus, vision): Extracts data from figure images using Claude's vision capability. Outputs flat observations matching Agent 2's format, with dedup against existing data.
 - **Agent 4 — Validation & correction** (`agent4_validate.py`, Sonnet): Two-level validation — L1 deterministic checks (missing fields, unit consistency, range plausibility) + L2 targeted LLM corrections for flagged issues.
 
 ### Key Scripts
@@ -115,6 +117,7 @@ File type routing: `detect_file_type()` in `scripts/parse_article.py` routes `.p
 | `llm_extract.py` | `LLMClient` wrapper for Anthropic API |
 | `normalize_attributes.py` | Sensory attribute normalization |
 | `validate.py` | Standalone validation utilities |
+| `migrate_v4_to_v5.py` | One-time migration from v4 (10-table) to v5 (7-table) schema |
 
 ### Key Configuration
 

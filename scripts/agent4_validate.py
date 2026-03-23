@@ -13,7 +13,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, load_prompt
-from scripts.db import get_db, get_paper_results, get_paper_experiments
+from scripts.db import get_db, get_paper_observations, get_paper_experiments
 
 console = Console()
 
@@ -61,21 +61,21 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
         "human_review_items": [],
     }
 
-    # Gather all results
-    all_results = agent2_output.get("results", [])
+    # Gather all observations from agents
+    all_observations = agent2_output.get("observations", [])
     if agent3_output:
-        all_results.extend(agent3_output.get("results", []))
+        all_observations = all_observations + agent3_output.get("observations", [])
 
     experiments = agent2_output.get("experiments", [])
 
     # ── Level 1: Deterministic auto-correction ──
     console.print("    [dim]L1: Deterministic checks...[/dim]")
-    l1_corrections = _run_level1_checks(all_results, experiments)
+    l1_corrections = _run_level1_checks(all_observations, experiments)
     report["l1_corrections"] = l1_corrections
 
     if l1_corrections:
-        _apply_l1_corrections(l1_corrections, paper_id, config)
-        console.print(f"    [yellow]L1: {len(l1_corrections)} auto-corrections applied[/yellow]")
+        applied = _apply_l1_corrections(l1_corrections, paper_id, config)
+        console.print(f"    [yellow]L1: {len(l1_corrections)} issues found, {applied} auto-corrections applied[/yellow]")
     else:
         console.print("    [green]L1: No issues found[/green]")
 
@@ -88,24 +88,24 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
 
     # ── Completeness check ──
     console.print("    [dim]Completeness check...[/dim]")
-    completeness = _run_completeness_check(article, all_results, experiments, paper_id, llm, config)
+    completeness = _run_completeness_check(article, all_observations, experiments, paper_id, llm, config)
     report["completeness_check"] = completeness
 
     # ── Spot check (random sample) ──
-    if all_results:
-        sample_size = max(1, int(len(all_results) * spot_check_fraction))
-        sample_indices = random.sample(range(len(all_results)), min(sample_size, len(all_results)))
-        sampled = [all_results[i] for i in sample_indices]
-        console.print(f"    [dim]Spot-checking {len(sampled)}/{len(all_results)} results...[/dim]")
+    if all_observations:
+        sample_size = max(1, int(len(all_observations) * spot_check_fraction))
+        sample_indices = random.sample(range(len(all_observations)), min(sample_size, len(all_observations)))
+        sampled = [all_observations[i] for i in sample_indices]
+        console.print(f"    [dim]Spot-checking {len(sampled)}/{len(all_observations)} observations...[/dim]")
         spot_results = _run_spot_check(sampled, article, llm, config,
                                        figure_metadata=figure_metadata)
         report["spot_check"] = spot_results
 
     # ── Deduplication ──
-    duplicates = _find_duplicates(all_results)
+    duplicates = _find_duplicates(all_observations)
     if duplicates:
         console.print(f"    [dim]Resolving {len(duplicates)} duplicate candidates...[/dim]")
-        report["duplicates_resolved"] = _resolve_duplicates(duplicates, paper_id, config)
+        report["duplicates_resolved"] = _resolve_duplicates(duplicates, all_observations, paper_id, config)
 
     # Summary
     total = len(report["l1_corrections"]) + len(report["l2_corrections"])
@@ -126,40 +126,47 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
     return report
 
 
-def _run_level1_checks(results: list, experiments: list) -> list:
+def _run_level1_checks(observations: list, experiments: list) -> list:
     """Level 1: Deterministic checks (no LLM cost)."""
     corrections = []
 
     # Build scale ranges lookup
     scale_ranges = {}
     for exp in experiments:
-        exp_id = exp.get("experiment_id")
+        exp_label = exp.get("experiment", "")
         scale_range = exp.get("scale_range", "")
         if scale_range and "-" in str(scale_range):
             try:
                 parts = str(scale_range).split("-")
                 low, high = float(parts[0]), float(parts[1])
-                scale_ranges[exp_id] = (low, high)
+                scale_ranges[exp_label] = (low, high)
             except (ValueError, IndexError):
                 pass
 
-    for i, r in enumerate(results):
-        value = r.get("value")
+    for i, obs in enumerate(observations):
+        value = obs.get("value")
         if value is None:
             continue
 
-        exp_id = r.get("experiment_id")
+        exp_label = obs.get("experiment", "")
+        value_type = obs.get("value_type", "")
+
+        # Derived params with null concentration/sample_label are valid
+        if value_type == "derived_param":
+            continue
 
         # Check: value outside scale range
-        if exp_id in scale_ranges:
-            low, high = scale_ranges[exp_id]
+        if exp_label in scale_ranges:
+            low, high = scale_ranges[exp_label]
             if value < low or value > high:
                 correction = {
-                    "result_index": i,
+                    "observation_index": i,
                     "issue": "scale_bound_violation",
                     "description": f"Value {value} outside scale range {low}-{high}",
                     "original_value": value,
-                    "experiment_id": exp_id,
+                    "substance": obs.get("substance"),
+                    "attribute": obs.get("attribute"),
+                    "experiment": exp_label,
                 }
 
                 # Try decimal shift correction
@@ -180,20 +187,20 @@ def _run_level1_checks(results: list, experiments: list) -> list:
                 corrections.append(correction)
 
         # Check: negative values where not expected
-        if value < 0 and r.get("value_type") in ("raw_mean", "frequency_pct", "dominance_rate"):
+        if value < 0 and value_type in ("raw_mean", "frequency_pct", "dominance_rate"):
             corrections.append({
-                "result_index": i,
+                "observation_index": i,
                 "issue": "negative_value",
-                "description": f"Negative value {value} for {r.get('value_type')}",
+                "description": f"Negative value {value} for {value_type}",
                 "original_value": value,
                 "needs_human_review": True,
             })
 
         # Check: percentage > 100
-        if r.get("value_type") in ("frequency_pct", "dominance_rate", "relative_pct"):
+        if value_type in ("frequency_pct", "dominance_rate", "relative_pct"):
             if value > 100:
                 corrections.append({
-                    "result_index": i,
+                    "observation_index": i,
                     "issue": "percentage_over_100",
                     "description": f"Percentage value {value}% exceeds 100%",
                     "original_value": value,
@@ -201,15 +208,15 @@ def _run_level1_checks(results: list, experiments: list) -> list:
                 })
 
     # Check: missing n values (infer from siblings)
-    n_values = [r.get("n") for r in results if r.get("n") is not None]
+    n_values = [obs.get("n") for obs in observations if obs.get("n") is not None]
     if n_values:
         from collections import Counter
         n_counts = Counter(n_values)
         most_common_n = n_counts.most_common(1)[0][0]
-        for i, r in enumerate(results):
-            if r.get("n") is None:
+        for i, obs in enumerate(observations):
+            if obs.get("n") is None and obs.get("value_type") != "derived_param":
                 corrections.append({
-                    "result_index": i,
+                    "observation_index": i,
                     "issue": "missing_n_inferred",
                     "description": f"Missing n, inferred as {most_common_n} from siblings",
                     "suggested_value": most_common_n,
@@ -220,14 +227,42 @@ def _run_level1_checks(results: list, experiments: list) -> list:
     return corrections
 
 
-def _apply_l1_corrections(corrections: list, paper_id: str, config: dict):
-    """Apply auto-corrected L1 corrections to the database."""
+def _apply_l1_corrections(corrections: list, paper_id: str, config: dict) -> int:
+    """Apply auto-corrected L1 corrections to the database. Returns count applied."""
     conn = get_db(config)
     auto = [c for c in corrections if c.get("auto_corrected")]
+    applied = 0
 
-    # For now, L1 corrections are logged but actual DB updates happen
-    # via the orchestrator re-committing corrected results
+    # Get observation_ids for this paper to map indices
+    db_observations = get_paper_observations(conn, paper_id)
+
+    for correction in auto:
+        idx = correction.get("observation_index")
+        if idx is None or idx >= len(db_observations):
+            continue
+
+        obs_id = db_observations[idx].get("observation_id")
+        if obs_id is None:
+            continue
+
+        field = correction.get("field", "value")
+        suggested = correction.get("suggested_value")
+        if suggested is None:
+            continue
+
+        try:
+            conn.execute(
+                f"UPDATE observations SET {field} = ? WHERE observation_id = ?",
+                (suggested, obs_id),
+            )
+            applied += 1
+        except Exception as e:
+            console.print(f"    [dim]L1 correction failed for obs {obs_id}: {e}[/dim]")
+
+    if applied:
+        conn.commit()
     conn.close()
+    return applied
 
 
 def _run_level2_corrections(flagged: list, article, llm: LLMClient, config: dict) -> list:
@@ -259,27 +294,30 @@ def _run_level2_corrections(flagged: list, article, llm: LLMClient, config: dict
     return corrections
 
 
-def _run_completeness_check(article, results: list, experiments: list,
+def _run_completeness_check(article, observations: list, experiments: list,
                              paper_id: str, llm: LLMClient, config: dict) -> dict:
-    """LLM completeness check: are there reported measurements not in results?"""
+    """LLM completeness check: are there reported measurements not in observations?"""
     prompt_template = load_prompt("agent4_validation")
     model = llm.get_model("agent4")
 
     # Build summaries
-    results_summary = [
-        {
-            "sample": r.get("sample_id", ""),
-            "attribute": r.get("attribute_normalized", r.get("attribute_raw", "")),
-            "value": r.get("value"),
-            "source": r.get("source_location", ""),
-        }
-        for r in results[:300]
-    ]
+    obs_summary = []
+    for obs in observations[:300]:
+        comps = obs.get("components") or []
+        conc = comps[0].get("concentration") if comps else None
+        obs_summary.append({
+            "substance": obs.get("substance", obs.get("substance_name", "")),
+            "concentration": conc,
+            "attribute": obs.get("attribute_normalized", obs.get("attribute", "")),
+            "value": obs.get("value"),
+            "value_type": obs.get("value_type", ""),
+            "source": obs.get("source", obs.get("source_location", "")),
+        })
 
     exp_summary = [
         {
-            "id": e.get("experiment_id"),
-            "method": e.get("sensory_method"),
+            "experiment": e.get("experiment"),
+            "method": e.get("method", e.get("sensory_method")),
             "scale": e.get("scale_type"),
         }
         for e in experiments
@@ -288,20 +326,20 @@ def _run_completeness_check(article, results: list, experiments: list,
     # Build article text
     article_text = ""
     if hasattr(article, 'full_text'):
-        article_text = article.full_text[:20000]
+        article_text = article.full_text[:50000]
 
     tables_md = ""
     if hasattr(article, 'tables'):
         tables_md = "\n\n".join(
             t.to_markdown() if hasattr(t, 'to_markdown') else str(t)
             for t in article.tables
-        )[:8000]
+        )[:30000]
 
     prompt = prompt_template
     prompt = prompt.replace("{article_text}", article_text)
     prompt = prompt.replace("{tables_markdown}", tables_md)
-    prompt = prompt.replace("{extracted_results_summary}", json.dumps(results_summary, indent=2)[:8000])
-    prompt = prompt.replace("{experiments_summary}", json.dumps(exp_summary, indent=2)[:2000])
+    prompt = prompt.replace("{extracted_results_summary}", json.dumps(obs_summary, indent=2)[:30000])
+    prompt = prompt.replace("{experiments_summary}", json.dumps(exp_summary, indent=2)[:5000])
     prompt = prompt.replace("{paper_id}", paper_id)
 
     try:
@@ -311,9 +349,9 @@ def _run_completeness_check(article, results: list, experiments: list,
         return {"error": str(e), "overall_assessment": "error"}
 
 
-def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict,
+def _run_spot_check(sampled_observations: list, article, llm: LLMClient, config: dict,
                     figure_metadata: list = None) -> dict:
-    """Spot-check random results against original text or figure images."""
+    """Spot-check random observations against original text or figure images."""
     model = llm.get_model("agent4")
     checked = 0
     issues = []
@@ -327,24 +365,28 @@ def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict
             if fig_id and local_path and Path(local_path).exists():
                 figure_paths[fig_id] = local_path
 
-    for r in sampled_results[:5]:  # Limit to 5 to control cost
-        source_location = r.get("source_location", "unknown")
-        source_type = r.get("source_type", "")
+    for obs in sampled_observations[:5]:  # Limit to 5 to control cost
+        source_location = obs.get("source", obs.get("source_location", "unknown"))
+        source_type = obs.get("source_type", "")
+
+        # Extract concentration from components
+        spot_components = obs.get("components") or []
+        spot_conc = spot_components[0].get("concentration") if spot_components else "N/A"
 
         prompt = (
             f"Verify this extracted data point against the original paper:\n"
-            f"- Sample: {r.get('sample_id', 'unknown')}\n"
-            f"- Attribute: {r.get('attribute_raw', 'unknown')}\n"
-            f"- Value: {r.get('value')}\n"
+            f"- Substance: {obs.get('substance', obs.get('substance_name', 'unknown'))}\n"
+            f"- Concentration: {spot_conc}\n"
+            f"- Attribute: {obs.get('attribute', obs.get('attribute_raw', 'unknown'))}\n"
+            f"- Value: {obs.get('value')}\n"
             f"- Source: {source_location}\n\n"
             f"Return JSON: {{\"correct\": true/false, \"actual_value\": <number or null>, \"explanation\": \"...\"}}"
         )
 
         try:
-            # If result is from a figure and we have the image, use vision
+            # If observation is from a figure and we have the image, use vision
             fig_path = None
             if source_type == "figure":
-                # Try to match source_location to a figure_id
                 for fig_id, path in figure_paths.items():
                     if fig_id.lower() in source_location.lower():
                         fig_path = path
@@ -358,11 +400,14 @@ def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict
             checked += 1
             if not result.get("correct", True):
                 issues.append({
-                    "result": r,
+                    "observation": obs,
                     "verification": result,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            issues.append({
+                "observation": obs,
+                "error": str(e),
+            })
 
     return {
         "checked": checked,
@@ -371,13 +416,32 @@ def _run_spot_check(sampled_results: list, article, llm: LLMClient, config: dict
     }
 
 
-def _find_duplicates(results: list) -> list:
-    """Find potential duplicate results (same sample + attribute, different sources)."""
+def _find_duplicates(observations: list) -> list:
+    """Find potential duplicate observations (same substance+concentration+attribute, different sources)."""
     seen = {}
     duplicates = []
 
-    for i, r in enumerate(results):
-        key = (r.get("sample_id"), r.get("attribute_normalized"), r.get("experiment_id"))
+    for i, obs in enumerate(observations):
+        # Extract concentration from components for dedup key
+        components = obs.get("components") or []
+        concentration = components[0].get("concentration") if components else None
+
+        # For derived params, dedup by (substance, attribute, experiment) — no concentration
+        if obs.get("value_type") == "derived_param":
+            key = (
+                obs.get("substance", obs.get("substance_name")),
+                obs.get("attribute_normalized", obs.get("attribute")),
+                obs.get("experiment"),
+            )
+        else:
+            key = (
+                obs.get("substance", obs.get("substance_name")),
+                concentration,
+                obs.get("base_matrix"),
+                obs.get("attribute_normalized", obs.get("attribute")),
+                obs.get("experiment"),
+            )
+
         if key in seen:
             duplicates.append((seen[key], i))
         else:
@@ -386,17 +450,58 @@ def _find_duplicates(results: list) -> list:
     return duplicates
 
 
-def _resolve_duplicates(duplicates: list, paper_id: str, config: dict) -> list:
-    """Resolve duplicates by keeping higher-confidence source."""
+def _resolve_duplicates(duplicates: list, observations: list,
+                        paper_id: str, config: dict) -> list:
+    """Resolve duplicates by keeping higher-confidence source. Deletes losers from DB."""
     confidence_rank = {"table": 4, "supplementary": 3, "text": 2, "figure": 1}
     resolved = []
 
-    # Actual DB deletion would happen here; for now just report
+    conn = get_db(config)
+    db_observations = get_paper_observations(conn, paper_id)
+    deleted = 0
+
     for idx1, idx2 in duplicates:
+        obs1 = observations[idx1]
+        obs2 = observations[idx2]
+
+        src1 = obs1.get("source_type", "")
+        src2 = obs2.get("source_type", "")
+        rank1 = confidence_rank.get(src1, 0)
+        rank2 = confidence_rank.get(src2, 0)
+
+        # Determine which to keep (higher rank wins; if tied, keep first)
+        if rank2 > rank1:
+            keep_idx, drop_idx = idx2, idx1
+        else:
+            keep_idx, drop_idx = idx1, idx2
+
+        action = "deleted_lower_confidence"
+
+        # Try to delete the lower-confidence observation from DB
+        if drop_idx < len(db_observations):
+            drop_obs_id = db_observations[drop_idx].get("observation_id")
+            if drop_obs_id is not None:
+                try:
+                    conn.execute(
+                        "DELETE FROM observations WHERE observation_id = ?",
+                        (drop_obs_id,),
+                    )
+                    deleted += 1
+                except Exception as e:
+                    action = f"deletion_failed: {e}"
+
         resolved.append({
-            "indices": [idx1, idx2],
-            "action": "flagged_for_review",
+            "kept_index": keep_idx,
+            "dropped_index": drop_idx,
+            "kept_source": observations[keep_idx].get("source_type"),
+            "dropped_source": observations[drop_idx].get("source_type"),
+            "action": action,
         })
+
+    if deleted:
+        conn.commit()
+        console.print(f"    [cyan]Deleted {deleted} duplicate observations[/cyan]")
+    conn.close()
 
     return resolved
 

@@ -1,206 +1,65 @@
-You are converting extracted sensory science data into structured database rows. The input is a rich JSON from a previous extraction step (Agent 1). Your output must be rows for specific database tables with exact column names matching the v4 SQLite schema.
+You are converting extracted sensory science data into structured rows. The input is a rich JSON from a previous extraction step (Agent 1). Your output is flat observation rows plus a peripheral context document.
+
+Paper ID: {paper_id}
 
 ═══════════════════════════════════════════════════════════════════
-PAPER ID
+OBSERVATIONS — FLAT, SELF-CONTAINED ROWS
 ═══════════════════════════════════════════════════════════════════
 
-The paper_id for this paper is: {paper_id}
+Each observation is ONE measurement: a substance (optionally at a concentration in a matrix) rated on an attribute. Each row is self-contained — no generated IDs, no cross-references.
 
-This ID is derived from the DOI by replacing all non-alphanumeric characters with underscores, collapsing consecutive underscores, and lowercasing.
-Example: "10.1016/j.foodqual.2018.01.001" → "10_1016_j_foodqual_2018_01_001"
+Fields per observation:
+  experiment          TEXT   — short label: "exp1", "exp2", ...
+  substance           TEXT   — substance name: "sucrose", "citric_acid"
+  components          ARRAY  — full sample composition as JSON array (see below)
+  base_matrix         TEXT   — carrier medium: "distilled water", "whole milk" (null for derived metrics)
+  is_control          BOOL   — true if control/blank/reference sample
+  attribute           TEXT   — attribute name exactly as in paper
+  attribute_normalized TEXT  — normalized to vocabulary (see below)
+  value               REAL   — the numeric value
+  value_type          TEXT   — "raw_mean", "raw_median", "relative_pct", "derived_param", "threshold", "frequency_pct", "dominance_rate"
+  error               REAL   — error/variability value (null if not reported)
+  error_type          TEXT   — "sd", "se", "ci95_lower", "ci95_upper" (null if not reported)
+  n                   INTEGER — number of panelists/observations (null if not reported)
+  source              TEXT   — specific location: "Table 2", "Figure 3a", "Section 3.2"
+  source_type         TEXT   — "table", "figure", "text", "supplementary"
+  confidence          TEXT   — "high", "medium", "low"
 
-All IDs you generate must use this paper_id as a prefix.
-
-═══════════════════════════════════════════════════════════════════
-ID CONVENTIONS
-═══════════════════════════════════════════════════════════════════
-
-Use double-underscore (__) as the separator between the paper_id prefix and the entity suffix:
-
-  experiment_id:  "{paper_id}__exp{N}"
-                  e.g. "10_1016_j_foodqual_2018_01_001__exp1"
-
-  stimulus_id:    "{paper_id}__{normalized_substance_name}_{N}"
-                  e.g. "10_1016_j_foodqual_2018_01_001__sucrose_1"
-                  Use the substance's normalized_name (lowercase, underscores, no spaces).
-
-  sample_id:      "{paper_id}__sample_{N}"
-                  e.g. "10_1016_j_foodqual_2018_01_001__sample_1"
-
-N is a 1-based sequential integer. Keep numbering consistent and ordered.
-
-═══════════════════════════════════════════════════════════════════
-THREE-LEVEL HIERARCHY: SUBSTANCE → STIMULUS → SAMPLE
-═══════════════════════════════════════════════════════════════════
-
-Understand this hierarchy carefully:
-
-1. SUBSTANCE (global chemical entity):
-   A unique chemical compound that exists across all papers. Example: "sucrose".
-   One row in the `substances` table. Has a globally unique normalized_name.
-
-2. STIMULUS (paper-specific sourced instance):
-   A particular sourced instance of a substance used in THIS paper.
-   Example: "Sucrose from Sigma-Aldrich, >99% purity, crystalline powder".
-   One row in the `stimuli` table. References a substance_id.
-   Different papers using sucrose from different suppliers = different stimuli, same substance.
-
-3. SAMPLE (what panelists actually tasted):
-   A specific preparation presented to panelists, composed of one or more stimuli at specific concentrations dissolved/mixed in a base matrix.
-   Example: "0.3 M sucrose in distilled water".
-   One row in the `samples` table. Linked to stimuli via `sample_components`.
-
-CRITICAL — SAMPLE COMPOSITION:
-Every sample MUST have a base_matrix value. The base matrix is the carrier medium (e.g., "distilled water", "whole milk", "orange juice"). Each sample is composed of:
-  1. One or more STIMULI (linked via the sample_components junction table) at specific concentrations
-  2. A BASE MATRIX (stored directly on the sample row in the base_matrix column)
-These are distinct concepts: stimuli are the test compounds; base matrix is what they are dissolved/mixed in. If the base matrix is unclear, check the experimental methods or conditions. Default to "water" only if the methods section clearly implies aqueous solutions without specifying the type. Never leave base_matrix empty — if truly unknown, set to "not reported".
+COMPONENTS FIELD:
+Always provide a components array listing ALL substances in the sample:
+  - Single substance: [{"substance": "sucrose", "concentration": 0.3, "unit": "M"}]
+  - Mixture: [{"substance": "sucrose", "concentration": 0.1, "unit": "M"}, {"substance": "citric_acid", "concentration": 0.001, "unit": "M"}]
+  - Stimulus-level (no sample): null
 
 ═══════════════════════════════════════════════════════════════════
-OUTPUT TABLE SCHEMAS
+STIMULUS-LEVEL DERIVED METRICS
 ═══════════════════════════════════════════════════════════════════
 
-Produce rows matching these exact column names and types.
+Some data describes a substance's behavior across concentrations, not a specific sample.
+Examples: dose-response slopes, EC50, Hill equation parameters, potency ratios, R² values.
 
-── papers (single row) ──────────────────────────────────────────
+For these, produce observation rows with:
+  - components: null
+  - base_matrix: null
+  - value_type: "derived_param"
 
-  paper_id                   TEXT PRIMARY KEY     — use {paper_id}
-  doi                        TEXT                 — original DOI string
-  title                      TEXT                 — full paper title
-  year                       INTEGER              — publication year
-  journal                    TEXT                 — journal name
-  country                    TEXT                 — country of study (if stated)
-  food_category              TEXT                 — e.g. "beverage", "dairy", "confectionery"
-  num_experiments            INTEGER              — count of experiments
-  panel_types                TEXT                 — comma-separated: "trained", "consumer", "expert"
-  max_panel_size             INTEGER              — largest panel across experiments
-  has_figure_data            BOOLEAN (0 or 1)     — 1 if data was extracted from figures
-  has_supplementary_data     BOOLEAN (0 or 1)     — 1 if supplementary materials contributed data
-  data_availability          TEXT                 — "full", "partial", "minimal"
-  data_availability_details  TEXT                 — free-text explanation of what data is/isn't available
-  validation_status          TEXT                 — set to "pending"
+Example — sample-level vs stimulus-level side by side:
 
-── experiments (array of rows) ──────────────────────────────────
+  Sample-level: {"experiment": "exp1", "substance": "sucrose",
+    "components": [{"substance": "sucrose", "concentration": 0.3, "unit": "M"}],
+    "base_matrix": "distilled water",
+    "attribute": "sweetness intensity", "value": 42.5, "value_type": "raw_mean", ...}
 
-  experiment_id              TEXT PRIMARY KEY     — "{paper_id}__exp{N}"
-  paper_id                   TEXT                 — {paper_id}
-  experiment_label           TEXT                 — label from paper: "Experiment 1", "Study A", etc.
-  sensory_method             TEXT                 — e.g. "QDA", "TDS", "TCATA", "ranking", "triangle", "duo-trio", "9-point hedonic", "GPA", "DA", "TI", "free-choice profiling", "CATA", "JAR"
-  scale_type                 TEXT                 — "line", "category", "ratio", "ranking", "binary", "JAR"
-  scale_range                TEXT                 — e.g. "0-10", "0-15", "1-9", "0-100"
-  panel_size                 INTEGER              — number of panelists for this experiment
-  panel_type                 TEXT                 — "trained", "consumer", "expert", "semi-trained"
-  serving_temp_c             REAL                 — serving temperature in Celsius (numeric)
-  serving_temp_raw           TEXT                 — original temperature text, e.g. "room temperature", "4°C ± 1°C"
-  conditions_json            TEXT                 — JSON string with extra conditions: carrier medium, tasting protocol, rinse protocol, replicates, session info, etc.
+  Stimulus-level: {"experiment": "exp1", "substance": "sucrose",
+    "components": null, "base_matrix": null,
+    "attribute": "power law exponent", "attribute_normalized": "power_law_exponent",
+    "value": 1.31, "value_type": "derived_param", ...}
 
-── substances (only NEW substances not in aliases dict) ─────────
+Common stimulus-level attributes: power_law_exponent, ec50, hill_slope, rmax,
+potency_ratio, r_squared, regression_coefficient, detection_threshold.
 
-  normalized_name            TEXT UNIQUE NOT NULL  — lowercase, underscores, no spaces: "sucrose", "citric_acid"
-  cas_number                 TEXT                  — CAS registry number if known, e.g. "57-50-1"
-  smiles                     TEXT                  — SMILES notation if known
-  molecular_weight           REAL                  — g/mol if known
-  category                   TEXT                  — "sweetener", "acid", "bitter compound", "aroma compound", "salt", "flavor enhancer", "thickener", "colorant", etc.
-  properties_json            TEXT                  — JSON string with extra chemical properties
-
-DO NOT include substances that already exist in the aliases dictionary.
-
-── stimuli (paper-specific sourced instances) ───────────────────
-
-  stimulus_id                TEXT PRIMARY KEY     — "{paper_id}__{normalized_substance_name}_{N}"
-  paper_id                   TEXT                 — {paper_id}
-  substance_id               INTEGER              — set to the matching substance_id from aliases, or null if unresolved
-  substance_name             TEXT                 — (helper field) the normalized_name used for resolution; not a DB column but needed for post-processing
-  original_name              TEXT                 — name as it appeared in the paper
-  supplier                   TEXT                 — e.g. "Sigma-Aldrich", "Givaudan"
-  purity                     TEXT                 — e.g. ">99%", "food grade"
-  form                       TEXT                 — e.g. "crystalline powder", "liquid", "solution"
-  details_json               TEXT                 — JSON string with additional sourcing details
-
-── samples (what panelists tasted) ──────────────────────────────
-
-  sample_id                  TEXT PRIMARY KEY     — "{paper_id}__sample_{N}"
-  paper_id                   TEXT                 — {paper_id}
-  experiment_id              TEXT                 — references an experiment_id from above
-  sample_label               TEXT                 — label from paper: "Sample A", "0.3M sucrose", "Control"
-  base_matrix                TEXT                 — carrier medium: "distilled water", "whole milk", "orange juice"
-  is_control                 BOOLEAN (0 or 1)     — 1 if this is a control/blank/reference sample
-
-── sample_components (junction: sample ↔ stimulus with concentration) ──
-
-  sample_id                  TEXT                 — references a sample_id
-  stimulus_id                TEXT                 — references a stimulus_id
-  concentration              REAL                 — numeric concentration value as reported
-  unit                       TEXT                 — unit as reported: "M", "mM", "% w/v", "g/L", "ppm", etc.
-  concentration_canonical    REAL                 — leave null (computed downstream)
-  unit_canonical             TEXT                 — leave null (computed downstream)
-
-── results (sensory measurement data points) ────────────────────
-
-  paper_id                   TEXT                 — {paper_id}
-  experiment_id              TEXT                 — references an experiment_id
-  sample_id                  TEXT                 — references a sample_id (or null if not sample-specific)
-  attribute_raw              TEXT                 — attribute name exactly as in paper
-  attribute_normalized       TEXT                 — normalized to controlled vocabulary (see attribute vocabulary below)
-  attribute_category         TEXT                 — "taste", "mouthfeel", "aroma", "texture", "appearance", "hedonic"
-  value                      REAL                 — the numeric value
-  value_type                 TEXT                 — one of: "raw_mean", "raw_median", "relative_pct", "derived_param", "threshold", "frequency_pct", "dominance_rate"
-  error_value                REAL                 — error/variability value (or null)
-  error_type                 TEXT                 — one of: "sd", "se", "ci95_lower", "ci95_upper" (or null)
-  n                          INTEGER              — number of observations/panelists (or null)
-  source_type                TEXT                 — one of: "table", "figure", "text", "supplementary"
-  source_location            TEXT                 — specific location: "Table 2", "Figure 3a", "Section 3.2 paragraph 1"
-  extraction_confidence      TEXT                 — one of: "high", "medium", "low"
-  context_json               TEXT                 — JSON string with result-level context (optional)
-
-═══════════════════════════════════════════════════════════════════
-ENUM VALUES REFERENCE
-═══════════════════════════════════════════════════════════════════
-
-value_type (what kind of numeric value):
-  - raw_mean: arithmetic mean of panelist ratings
-  - raw_median: median of panelist ratings
-  - relative_pct: percentage relative to a reference (e.g., sweetness as % of reference)
-  - derived_param: derived parameter from model fitting (e.g., Stevens' exponent, Imax from TI)
-  - threshold: detection or recognition threshold concentration
-  - frequency_pct: percentage of panelists selecting an attribute (CATA, TCATA)
-  - dominance_rate: dominance rate from TDS analysis
-
-source_type (where the data came from):
-  - table: extracted from a data table
-  - figure: extracted from a figure (read off plot, estimated from graph)
-  - text: extracted from inline text in the manuscript
-  - supplementary: from supplementary materials
-
-extraction_confidence (how confident you are in the value):
-  - high: value is clearly stated, unambiguous
-  - medium: value is stated but some interpretation needed (unit inference, table layout ambiguity)
-  - low: value is approximate (read from figure, imprecise text description)
-
-error_type (type of error/variability measure):
-  - sd: standard deviation
-  - se: standard error of the mean
-  - ci95_lower: lower bound of 95% confidence interval
-  - ci95_upper: upper bound of 95% confidence interval
-
-═══════════════════════════════════════════════════════════════════
-SUBSTANCE RESOLUTION
-═══════════════════════════════════════════════════════════════════
-
-Known substance aliases dictionary:
-{substance_aliases}
-
-Resolution procedure:
-1. For each substance mentioned in the paper, first check the aliases dictionary above.
-   If a substance name (case-insensitive) matches any alias key, use the corresponding
-   normalized_name — and set the substance_id to the matching entry.
-2. If no alias matches, also try matching against normalized_name values directly.
-3. If still not found: propose a new normalized_name (lowercase, underscores, no spaces,
-   no special characters). Set substance_id to null. Add the substance to the "substances"
-   array in your output, and add the original name to "unresolved_substances".
-
-Always prefer existing substances over creating new ones. Common substances like sucrose,
-citric acid, NaCl, caffeine, quinine, etc. should already be in the aliases dictionary.
+For potency ratios, include the reference in the attribute field:
+  e.g. attribute = "potency ratio (5% sucrose reference)"
 
 ═══════════════════════════════════════════════════════════════════
 ATTRIBUTE NORMALIZATION
@@ -209,61 +68,45 @@ ATTRIBUTE NORMALIZATION
 Use this vocabulary to normalize attribute names:
 {attribute_vocabulary}
 
-For each sensory attribute in the data:
-- Set attribute_raw to the exact name as it appears in the paper
-- Set attribute_normalized by looking up attribute_raw (case-insensitive) in the mappings above
-- Set attribute_category to the category (taste, mouthfeel, aroma, texture, appearance, hedonic)
-- If no mapping is found, set attribute_normalized to a reasonable lowercase_underscore form
-  and set attribute_category based on your best judgment
+For each attribute:
+- attribute = exact name as in the paper
+- attribute_normalized = lookup in vocabulary (case-insensitive), or lowercase_underscore form
 
 ═══════════════════════════════════════════════════════════════════
-CONTEXT JSON (structured context document)
+PERIPHERAL CONTEXT — JSON DOCUMENT
 ═══════════════════════════════════════════════════════════════════
 
-Build a structured context document with these fixed section headings. This captures rich
-contextual information that doesn't fit into the structured columns but is essential for
-interpreting the data. Store this as the paper-level context_json.
+Capture all non-measurement information in a structured context document:
 
 {
-  "panel": {
-    "selection_criteria": "...",
-    "training_description": "...",
-    "demographics": "...",
-    "compensation": "..."
+  "metadata": {
+    "doi": "...", "title": "...", "authors": [...], "year": ..., "journal": "...",
+    "country": "...", "institution": "...", "food_category": "...",
+    "keywords": [...], "funding": "...", "ethics_approval": "...",
+    "data_availability": "full|partial|minimal"
   },
-  "design": {
-    "experimental_design": "...",
-    "randomization": "...",
-    "blinding": "...",
-    "replicates": "...",
-    "sessions": "..."
+  "experiments": {
+    "exp1": {
+      "label": "...",
+      "panel": {"type": "...", "size": ..., "demographics": "...", "screening": "...", "training": "..."},
+      "design": {"sessions": ..., "randomization": "...", "sample_volume": "...", "ISI": "...", "replicates": ..., "environment": "..."},
+      "scale": {"type": "...", "full_name": "...", "range": "...", "anchors": [...]}
+    }
   },
-  "measurement_specification": {
-    "scale_anchors": "...",
-    "reference_standards": "...",
-    "evaluation_procedure": "..."
+  "substance_sourcing": {
+    "sucrose": {"supplier": "...", "purity": "...", "form": "...", "cas_number": "..."}
   },
-  "stimuli_details": {
-    "preparation_protocol": "...",
-    "storage_conditions": "...",
-    "equilibration": "..."
-  },
-  "statistical_context": {
-    "methods_used": "...",
-    "significance_levels": "...",
-    "post_hoc_tests": "...",
-    "reported_effects": "..."
-  },
+  "statistical_analyses": [
+    {"test": "...", "factors": [...], "dependent": "...", "F": ..., "p": "...", "effect_size": "..."}
+  ],
   "figure_inventory": [
-    {"figure_id": "Figure 1", "description": "...", "data_extracted": true/false}
+    {"figure_id": "Figure 1", "caption": "...", "type": "...", "data_extracted": false, "relevance_score": ...}
   ],
-  "data_gaps": [
-    "Description of any data that could not be extracted and why"
-  ],
-  "cross_experiment_relationships": "..."
+  "data_gaps": ["..."],
+  "derived_metrics_context": [
+    {"substance": "...", "model": "...", "parameters": "...", "conditions": "..."}
+  ]
 }
-
-Populate each section from the Agent 1 JSON. Use null for sections with no information.
 
 ═══════════════════════════════════════════════════════════════════
 INPUT: AGENT 1's EXTRACTION OUTPUT
@@ -275,163 +118,37 @@ INPUT: AGENT 1's EXTRACTION OUTPUT
 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════════
 
-Return a single JSON object with this structure:
+Return a single JSON object:
 
-```json
 {
   "paper": {
-    "paper_id": "...",
+    "paper_id": "{paper_id}",
     "doi": "...",
     "title": "...",
     "year": ...,
-    "journal": "...",
-    "country": "...",
-    "food_category": "...",
-    "num_experiments": ...,
-    "panel_types": "...",
-    "max_panel_size": ...,
-    "has_figure_data": 0,
-    "has_supplementary_data": 0,
-    "data_availability": "...",
-    "data_availability_details": "...",
-    "validation_status": "pending"
+    "journal": "..."
   },
   "experiments": [
-    {
-      "experiment_id": "...",
-      "paper_id": "...",
-      "experiment_label": "...",
-      "sensory_method": "...",
-      "scale_type": "...",
-      "scale_range": "...",
-      "panel_size": ...,
-      "panel_type": "...",
-      "serving_temp_c": ...,
-      "serving_temp_raw": "...",
-      "conditions_json": { ... }
-    }
+    {"experiment": "exp1", "label": "...", "method": "...", "scale_type": "...", "scale_range": "..."}
   ],
-  "substances": [
-    {
-      "normalized_name": "...",
-      "cas_number": "...",
-      "smiles": "...",
-      "molecular_weight": ...,
-      "category": "...",
-      "properties_json": { ... }
-    }
+  "observations": [
+    { ...flat observation objects as described above... }
   ],
-  "stimuli": [
-    {
-      "stimulus_id": "...",
-      "paper_id": "...",
-      "substance_id": null,
-      "substance_name": "...",
-      "original_name": "...",
-      "supplier": "...",
-      "purity": "...",
-      "form": "...",
-      "details_json": { ... }
-    }
-  ],
-  "samples": [
-    {
-      "sample_id": "...",
-      "paper_id": "...",
-      "experiment_id": "...",
-      "sample_label": "...",
-      "base_matrix": "...",
-      "is_control": 0
-    }
-  ],
-  "sample_components": [
-    {
-      "sample_id": "...",
-      "stimulus_id": "...",
-      "concentration": ...,
-      "unit": "...",
-      "concentration_canonical": null,
-      "unit_canonical": null
-    }
-  ],
-  "results": [
-    {
-      "paper_id": "...",
-      "experiment_id": "...",
-      "sample_id": "...",
-      "attribute_raw": "...",
-      "attribute_normalized": "...",
-      "attribute_category": "...",
-      "value": ...,
-      "value_type": "...",
-      "error_value": ...,
-      "error_type": "...",
-      "n": ...,
-      "source_type": "...",
-      "source_location": "...",
-      "extraction_confidence": "...",
-      "context_json": null
-    }
-  ],
-  "context_json": {
-    "panel": { ... },
-    "design": { ... },
-    "measurement_specification": { ... },
-    "stimuli_details": { ... },
-    "statistical_context": { ... },
-    "figure_inventory": [ ... ],
-    "data_gaps": [ ... ],
-    "cross_experiment_relationships": "..."
-  },
-  "unresolved_substances": [
-    "original name from paper that could not be matched"
-  ],
-  "warnings": [
-    "Any issues, ambiguities, or decisions made during structuring"
-  ]
+  "context": { ...peripheral context document as described above... },
+  "warnings": ["Any issues, ambiguities, or decisions made during structuring"]
 }
-```
-
-═══════════════════════════════════════════════════════════════════
-DERIVED METRICS → RESULTS MAPPING
-═══════════════════════════════════════════════════════════════════
-
-Agent 1 may include a `derived_metrics` array within each experiment containing model
-parameters (Stevens' law exponents, Hill equation parameters like Imax/K/n, EC50 values,
-potency ratios, slopes, intercepts, R² values, etc.). Convert each derived metric into
-a results row as follows:
-
-  - metric_type → attribute_raw (e.g., "power_law_exponent", "potency_ratio_5pct_sucrose")
-  - description → use to build a clear attribute_raw if metric_type alone is ambiguous
-  - value → value
-  - value_type = "derived_param"
-  - se / ci_lower / ci_upper → error_value / error_type (map appropriately)
-  - data_source → source_location
-  - model / parameters / conditions → store as JSON string in context_json
-  - extraction_confidence = "high" (these come from tables with exact values)
-  - source_type = "table" or "text" (based on data_source)
-
-For metrics that apply to a specific substance/sweetener (e.g., "slope for sucrose"),
-match to the appropriate sample_id. If the metric is experiment-level and not
-sample-specific, set sample_id to null.
-
-For potency ratios, create one result row per substance × reference level combination:
-  - attribute_raw = "potency_ratio" or the specific label from the paper
-  - Store the reference conditions (e.g., "relative to 5% sucrose") in context_json
 
 ═══════════════════════════════════════════════════════════════════
 IMPORTANT RULES
 ═══════════════════════════════════════════════════════════════════
 
-1. Every experiment_id, sample_id, and stimulus_id must use {paper_id} as prefix with double-underscore separator.
-2. Every sample must reference a valid experiment_id from your experiments array.
-3. Every sample_component must reference valid sample_id and stimulus_id from your output.
-4. Every result must reference a valid experiment_id, and (when applicable) a valid sample_id.
-5. Do not invent data. Only include values explicitly stated or clearly shown in the Agent 1 JSON.
-6. If Agent 1 reports data from figures, set has_figure_data = 1 and source_type = "figure".
-7. For conditions_json in experiments, include all methodological details not captured by named columns.
-8. Leave concentration_canonical and unit_canonical as null — they are computed downstream.
-9. Generate one result row per unique (experiment, sample, attribute, value_type) combination.
-10. If an error value is reported alongside a mean, include both in the same result row.
+1. Do not generate any IDs. Use simple experiment labels (exp1, exp2, ...). Use substance names as text.
+2. Every observation is self-contained — it carries its own substance, concentration, matrix, and attribute.
+3. Do not invent data. Only include values explicitly stated or clearly shown in the Agent 1 JSON.
+4. For mixtures: one observation row per measurement with ALL components in the components array.
+5. For derived metrics (slopes, EC50, potency ratios): set components to null, base_matrix to null, value_type to "derived_param".
+6. Include ALL data from the Agent 1 JSON — tables, text, and derived metrics. Do not skip any measurements.
+7. Generate one observation per unique (experiment, substance, components, attribute, value_type) combination.
+8. If an error value is reported alongside a mean, include both in the same observation row.
 
-Return ONLY the JSON. Ensure all foreign key references are consistent.
+Return ONLY the JSON.

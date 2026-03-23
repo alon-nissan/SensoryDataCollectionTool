@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agent 3 — Figure Extraction: Extract data from figures using Agent 2's sample IDs."""
+"""Agent 3 — Figure Extraction: Extract data from figures as flat observations."""
 
 import json
 import sys
@@ -12,7 +12,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, load_prompt
-from scripts.db import get_db, get_paper_results, insert_results_batch, insert_experiment, insert_sample
+from scripts.db import get_db, get_paper_observations, insert_observations_batch
 
 console = Console()
 
@@ -25,14 +25,14 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
     Args:
         figure_metadata: List of dicts with figure info (local_path, figure_id, caption)
         agent1_output: Agent 1's extraction JSON (for figure context)
-        agent2_output: Agent 2's structured output (for sample IDs and existing results)
+        agent2_output: Agent 2's structured output (for existing observations and experiments)
         paper_id: Paper identifier
         run_id: Extraction run ID
         config: Config dict
         llm: LLMClient instance
 
     Returns:
-        Dict with all_results, unmatched_samples, extraction_notes
+        Dict with observations, observations_inserted, extraction_notes, db_insert_error
     """
     if config is None:
         with open(ROOT_DIR / "config.yaml") as f:
@@ -47,20 +47,15 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
     model = llm.get_model("agent3")
 
     # Build context from Agent 2's output
-    sample_ids = _build_sample_id_list(agent2_output)
-    existing_summary = _build_existing_results_summary(agent2_output)
+    existing_obs_summary = _build_existing_observations_summary(agent2_output)
     experiment_context = _build_experiment_context(agent2_output)
-
-    # Use compact format for sample list to avoid truncation
-    sample_ids_str = _format_sample_list_compact(sample_ids)
     experiment_context_str = json.dumps(experiment_context, indent=2)
 
-    all_results = []
-    all_unmatched = []
+    all_observations = []
     all_notes = []
 
-    # Track accumulated results across figures for deduplication (FIX 5)
-    accumulated_results = list(existing_summary)  # Start with Agent 2's results
+    # Track accumulated observations for cross-figure dedup
+    accumulated_obs = list(existing_obs_summary)
 
     for fig in figure_metadata:
         local_path = fig.get("local_path", "")
@@ -74,124 +69,142 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
         # Get figure description from Agent 1 inventory
         fig_description = _get_figure_description(agent1_output, fig_id)
 
-        # Build per-figure dedup summary (Agent 2 results + results from prior figures)
-        dedup_summary_str = json.dumps(accumulated_results, indent=2)
+        # Build per-figure dedup summary (Agent 2 obs + prior figures)
+        dedup_summary_str = json.dumps(accumulated_obs, indent=2)
 
         # Fill prompt
         prompt = prompt_template
         prompt = prompt.replace("{figure_caption}", caption)
         prompt = prompt.replace("{figure_description}", fig_description)
-        prompt = prompt.replace("{existing_sample_ids}", sample_ids_str)
-        prompt = prompt.replace("{existing_results_summary}", dedup_summary_str)
+        prompt = prompt.replace("{existing_observations_summary}", dedup_summary_str)
         prompt = prompt.replace("{experiment_context}", experiment_context_str)
         prompt = prompt.replace("{paper_id}", paper_id)
 
         try:
             result = llm.extract_json_with_image(prompt, local_path, model=model)
 
-            new_results = result.get("new_results", [])
-            # Tag all results with paper_id and run_id
-            for r in new_results:
-                r["paper_id"] = paper_id
-                r["run_id"] = run_id
-                r["source_type"] = "figure"
-                if not r.get("source_location"):
-                    r["source_location"] = fig_id
+            new_obs = result.get("new_observations", [])
+            # Tag all observations with paper_id, run_id, source
+            for obs in new_obs:
+                obs["paper_id"] = paper_id
+                obs["run_id"] = run_id
+                obs["source_type"] = "figure"
+                if not obs.get("source"):
+                    obs["source"] = fig_id
 
-            all_results.extend(new_results)
-            all_unmatched.extend(result.get("unmatched_samples", []))
+            all_observations.extend(new_obs)
             if result.get("extraction_notes"):
                 all_notes.append(f"{fig_id}: {result['extraction_notes']}")
 
-            # Accumulate results for cross-figure deduplication
-            for r in new_results:
-                accumulated_results.append({
-                    "sample_id": r.get("sample_id"),
-                    "attribute": r.get("attribute_normalized", r.get("attribute_raw", "")),
-                    "value": r.get("value"),
-                    "source": r.get("source_location", fig_id),
+            # Accumulate for cross-figure dedup
+            for obs in new_obs:
+                obs_comps = obs.get("components") or []
+                obs_conc = obs_comps[0].get("concentration") if obs_comps else None
+                accumulated_obs.append({
+                    "substance": obs.get("substance"),
+                    "concentration": obs_conc,
+                    "attribute": obs.get("attribute_normalized", obs.get("attribute", "")),
+                    "value": obs.get("value"),
+                    "source": obs.get("source", fig_id),
                 })
 
-            console.print(f"    [green]✓ {fig_id}: {len(new_results)} new data points[/green]")
+            console.print(f"    [green]✓ {fig_id}: {len(new_obs)} new data points[/green]")
 
         except Exception as e:
             console.print(f"    [red]✗ {fig_id}: {e}[/red]")
             all_notes.append(f"{fig_id}: extraction failed — {e}")
 
-    # Build output dict first — always returned, even if DB insert fails
+    # Build output dict — always returned even if DB insert fails
     output = {
-        "results": all_results,
-        "results_inserted": 0,
-        "unmatched_samples": all_unmatched,
+        "observations": all_observations,
+        "observations_inserted": 0,
         "extraction_notes": all_notes,
         "db_insert_error": None,
     }
 
-    if all_results:
+    if all_observations:
         try:
             conn = get_db(config)
-            # Create stub rows for any missing FK references
-            _ensure_referenced_entities(conn, all_results, paper_id, run_id, config)
-            # Filter out any remaining invalid references (safety net)
-            valid_results, dropped = _filter_valid_fk_references(conn, all_results, paper_id)
-            if dropped:
-                output["dropped_results"] = [
-                    {"sample_id": d["result"].get("sample_id"),
-                     "experiment_id": d["result"].get("experiment_id"),
-                     "reasons": d["reasons"]}
-                    for d in dropped
-                ]
-            # Insert only valid results
-            inserted = insert_results_batch(conn, valid_results) if valid_results else 0
+
+            # Validate experiment references
+            valid_exp_ids = {row["experiment_id"] for row in conn.execute(
+                "SELECT experiment_id FROM experiments WHERE paper_id = ?",
+                (paper_id,),
+            ).fetchall()}
+
+            db_rows = []
+            dropped = []
+            for obs in all_observations:
+                exp_label = obs.get("experiment", "exp1")
+                experiment_id = f"{paper_id}__exp{exp_label.replace('exp', '')}"
+
+                if experiment_id not in valid_exp_ids:
+                    dropped.append(
+                        f"({obs.get('substance')}, {obs.get('attribute')}): "
+                        f"experiment_id '{experiment_id}' not in DB"
+                    )
+                    continue
+
+                components = obs.get("components")
+                if isinstance(components, list):
+                    components_json = components
+                else:
+                    components_json = None
+
+                db_rows.append({
+                    "paper_id": paper_id,
+                    "experiment_id": experiment_id,
+                    "substance_name": obs.get("substance"),
+                    "components_json": components_json,
+                    "base_matrix": obs.get("base_matrix"),
+                    "is_control": obs.get("is_control", False),
+                    "attribute_raw": obs.get("attribute"),
+                    "attribute_normalized": obs.get("attribute_normalized"),
+                    "value": obs.get("value"),
+                    "value_type": obs.get("value_type"),
+                    "error_value": obs.get("error"),
+                    "error_type": obs.get("error_type"),
+                    "n": obs.get("n"),
+                    "source_type": obs.get("source_type", "figure"),
+                    "source_location": obs.get("source"),
+                    "extraction_confidence": obs.get("confidence"),
+                    "run_id": run_id,
+                })
+
+            inserted = insert_observations_batch(conn, db_rows) if db_rows else 0
             conn.close()
-            output["results_inserted"] = inserted
-            console.print(f"  [green]✓ Agent 3 complete: {inserted} figure data points inserted[/green]")
+
+            output["observations_inserted"] = inserted
             if dropped:
-                console.print(f"  [yellow]⚠ {len(dropped)} results dropped (FK mismatch after stub creation)[/yellow]")
+                output["dropped"] = dropped
+                console.print(f"  [yellow]⚠ {len(dropped)} observations dropped (invalid experiment refs)[/yellow]")
+            console.print(f"  [green]✓ Agent 3 complete: {inserted} figure data points inserted[/green]")
+
         except Exception as e:
             output["db_insert_error"] = str(e)
             console.print(f"  [yellow]⚠ Agent 3 DB insert failed: {e}[/yellow]")
-            console.print(f"  [dim]Results preserved in output dict for artifact save.[/dim]")
+            console.print(f"  [dim]Observations preserved in output dict for artifact save.[/dim]")
     else:
         console.print(f"  [green]✓ Agent 3 complete: no figure data points extracted[/green]")
 
     return output
 
 
-def _build_sample_id_list(agent2_output: dict) -> list[dict]:
-    """Build a list of sample IDs with labels for Agent 3's context."""
-    samples = agent2_output.get("samples", [])
-    return [{"sample_id": s.get("sample_id"), "label": s.get("sample_label", "")}
-            for s in samples]
-
-
-def _format_sample_list_compact(sample_ids: list[dict]) -> str:
-    """Format sample list in compact pipe-delimited format to avoid truncation.
-
-    Instead of verbose JSON with indentation, produce one line per sample:
-        sample_id | label
-    This fits ~5x more samples in the same character budget.
-    """
-    lines = ["sample_id | label"]
-    for s in sample_ids:
-        sid = s.get("sample_id", "")
-        label = s.get("label", "")
-        lines.append(f"{sid} | {label}")
-    return "\n".join(lines)
-
-
-def _build_existing_results_summary(agent2_output: dict) -> list[dict]:
-    """Build a compact summary of Agent 2's results for deduplication."""
-    results = agent2_output.get("results", [])
-    return [
-        {
-            "sample_id": r.get("sample_id"),
-            "attribute": r.get("attribute_normalized", r.get("attribute_raw", "")),
-            "value": r.get("value"),
-            "source": r.get("source_location", ""),
-        }
-        for r in results[:200]  # Limit to avoid context overflow
-    ]
+def _build_existing_observations_summary(agent2_output: dict) -> list[dict]:
+    """Build compact dedup summary from Agent 2's observations."""
+    observations = agent2_output.get("observations", [])
+    summaries = []
+    for obs in observations[:300]:  # Cap to avoid context overflow
+        components = obs.get("components") or []
+        concentration = components[0].get("concentration") if components else None
+        summaries.append({
+            "substance": obs.get("substance"),
+            "concentration": concentration,
+            "attribute": obs.get("attribute_normalized", obs.get("attribute", "")),
+            "value": obs.get("value"),
+            "source": obs.get("source", ""),
+        })
+    return summaries
 
 
 def _build_experiment_context(agent2_output: dict) -> list[dict]:
@@ -199,8 +212,8 @@ def _build_experiment_context(agent2_output: dict) -> list[dict]:
     experiments = agent2_output.get("experiments", [])
     return [
         {
-            "experiment_id": e.get("experiment_id"),
-            "method": e.get("sensory_method"),
+            "experiment": e.get("experiment"),
+            "method": e.get("method"),
             "scale_type": e.get("scale_type"),
             "scale_range": e.get("scale_range"),
         }
@@ -214,108 +227,6 @@ def _get_figure_description(agent1_output: dict, figure_id: str) -> str:
         if fig.get("figure_id") == figure_id:
             return fig.get("description", "")
     return ""
-
-
-def _ensure_referenced_entities(conn, all_results: list[dict],
-                                paper_id: str, run_id: int, config: dict):
-    """Create stub DB rows for experiment/sample IDs referenced by Agent 3
-    results that don't yet exist in the database."""
-    existing_exp_ids = {row["experiment_id"] for row in conn.execute(
-        "SELECT experiment_id FROM experiments WHERE paper_id = ?", (paper_id,)
-    ).fetchall()}
-    existing_sample_ids = {row["sample_id"] for row in conn.execute(
-        "SELECT sample_id FROM samples WHERE paper_id = ?", (paper_id,)
-    ).fetchall()}
-
-    referenced_exp_ids = {r["experiment_id"] for r in all_results if r.get("experiment_id")}
-    referenced_sample_ids = {r["sample_id"] for r in all_results if r.get("sample_id")}
-
-    # Create missing experiment stubs
-    missing_exps = referenced_exp_ids - existing_exp_ids
-    for exp_id in sorted(missing_exps):
-        insert_experiment(conn, {
-            "experiment_id": exp_id,
-            "paper_id": paper_id,
-            "experiment_label": "[figure-created]",
-        })
-
-    # Create missing sample stubs
-    missing_samples = referenced_sample_ids - existing_sample_ids
-    for sample_id in sorted(missing_samples):
-        # Find first result referencing this sample for context
-        ref_result = next((r for r in all_results if r.get("sample_id") == sample_id), None)
-        exp_id = ref_result.get("experiment_id") if ref_result else None
-
-        # Try to build a label from context_json
-        label = "[figure-created]"
-        if ref_result:
-            ctx = ref_result.get("context_json")
-            if isinstance(ctx, dict):
-                label = ctx.get("sample_label", ctx.get("description", label))
-            elif isinstance(ctx, str):
-                try:
-                    ctx_parsed = json.loads(ctx)
-                    label = ctx_parsed.get("sample_label", ctx_parsed.get("description", label))
-                except (json.JSONDecodeError, AttributeError):
-                    pass
-
-        # Ensure experiment_id exists (may need a stub too)
-        if exp_id and exp_id not in existing_exp_ids and exp_id not in missing_exps:
-            insert_experiment(conn, {
-                "experiment_id": exp_id,
-                "paper_id": paper_id,
-                "experiment_label": "[figure-created]",
-            })
-            missing_exps.add(exp_id)
-
-        insert_sample(conn, {
-            "sample_id": sample_id,
-            "paper_id": paper_id,
-            "experiment_id": exp_id,
-            "sample_label": label,
-            "base_matrix": None,
-            "is_control": 0,
-        })
-
-    if missing_exps or missing_samples:
-        console.print(
-            f"    [cyan]Created {len(missing_exps)} experiment + "
-            f"{len(missing_samples)} sample stubs for figure-created entities[/cyan]"
-        )
-
-
-def _filter_valid_fk_references(conn, results: list[dict],
-                                paper_id: str) -> tuple[list[dict], list[dict]]:
-    """Filter results to only those with valid FK references.
-
-    Returns (valid, dropped).
-    """
-    valid_exp_ids = {row["experiment_id"] for row in conn.execute(
-        "SELECT experiment_id FROM experiments WHERE paper_id = ?", (paper_id,)
-    ).fetchall()}
-    valid_sample_ids = {row["sample_id"] for row in conn.execute(
-        "SELECT sample_id FROM samples WHERE paper_id = ?", (paper_id,)
-    ).fetchall()}
-
-    valid, dropped = [], []
-    for r in results:
-        exp_id = r.get("experiment_id")
-        sample_id = r.get("sample_id")
-        reasons = []
-        if exp_id and exp_id not in valid_exp_ids:
-            reasons.append(f"experiment_id '{exp_id}' not found")
-        if sample_id and sample_id not in valid_sample_ids:
-            reasons.append(f"sample_id '{sample_id}' not found")
-        if reasons:
-            dropped.append({"result": r, "reasons": reasons})
-        else:
-            valid.append(r)
-
-    if dropped:
-        for d in dropped:
-            console.print(f"    [dim]↳ Dropped: {', '.join(d['reasons'])}[/dim]")
-
-    return valid, dropped
 
 
 def save_agent3_output(result: dict, study_id: str, config: dict = None) -> Path:

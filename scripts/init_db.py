@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Initialize the v4 SQLite database schema for sensory data extraction.
+"""Initialize the v5 SQLite database schema for sensory data extraction.
+
+v5 changes (from v4):
+- Collapsed stimuli, samples, sample_components, results → observations
+- Slimmed papers (15 → 7 cols) and experiments (11 → 6 cols)
+- Added components_json for mixture handling
+- Peripheral data now stored as JSON documents, not in SQL
 
 Usage:
     python scripts/init_db.py          # creates/updates data/sensory_data.db
@@ -26,43 +32,52 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 TABLES_SQL = """
--- 1. papers: One row per paper
+-- 1. papers: One row per paper (slim — peripheral metadata in JSON docs)
 CREATE TABLE IF NOT EXISTS papers (
     paper_id TEXT PRIMARY KEY,
     doi TEXT UNIQUE,
     title TEXT,
     year INTEGER,
     journal TEXT,
-    country TEXT,
-    food_category TEXT,
-    num_experiments INTEGER,
-    panel_types TEXT,
-    max_panel_size INTEGER,
-    has_figure_data BOOLEAN DEFAULT 0,
-    has_supplementary_data BOOLEAN DEFAULT 0,
-    data_availability TEXT,
-    data_availability_details TEXT,
     latest_run_id INTEGER REFERENCES extraction_runs(run_id),
-    validation_status TEXT DEFAULT 'pending',
-    context_json TEXT
+    validation_status TEXT DEFAULT 'pending'
 );
 
--- 2. experiments: One per experiment within a paper
+-- 2. experiments: One per experiment within a paper (slim — panel/design in JSON docs)
 CREATE TABLE IF NOT EXISTS experiments (
     experiment_id TEXT PRIMARY KEY,
     paper_id TEXT NOT NULL REFERENCES papers(paper_id),
     experiment_label TEXT,
     sensory_method TEXT,
     scale_type TEXT,
-    scale_range TEXT,
-    panel_size INTEGER,
-    panel_type TEXT,
-    serving_temp_c REAL,
-    serving_temp_raw TEXT,
-    conditions_json TEXT
+    scale_range TEXT
 );
 
--- 3. substances: Global chemical entity registry (cross-paper)
+-- 3. observations: Core data — denormalized (replaces results + samples + sample_components + stimuli)
+--    components_json stores the full composition as a JSON array.
+--    For stimulus-level derived metrics: components_json=NULL, value_type='derived_param'.
+CREATE TABLE IF NOT EXISTS observations (
+    observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paper_id TEXT NOT NULL REFERENCES papers(paper_id),
+    experiment_id TEXT REFERENCES experiments(experiment_id),
+    substance_name TEXT,
+    components_json TEXT,
+    base_matrix TEXT,
+    is_control BOOLEAN DEFAULT 0,
+    attribute_raw TEXT,
+    attribute_normalized TEXT,
+    value REAL,
+    value_type TEXT,
+    error_value REAL,
+    error_type TEXT,
+    n INTEGER,
+    source_type TEXT,
+    source_location TEXT,
+    extraction_confidence TEXT,
+    run_id INTEGER REFERENCES extraction_runs(run_id)
+);
+
+-- 4. substances: Global chemical entity registry (cross-paper, populated by Python code)
 CREATE TABLE IF NOT EXISTS substances (
     substance_id INTEGER PRIMARY KEY AUTOINCREMENT,
     normalized_name TEXT UNIQUE NOT NULL,
@@ -73,67 +88,13 @@ CREATE TABLE IF NOT EXISTS substances (
     properties_json TEXT
 );
 
--- 4. substance_aliases: Maps variant names to canonical substances
+-- 5. substance_aliases: Maps variant names to canonical substances
 CREATE TABLE IF NOT EXISTS substance_aliases (
     alias TEXT PRIMARY KEY,
     substance_id INTEGER NOT NULL REFERENCES substances(substance_id)
 );
 
--- 5. stimuli: Paper-specific sourced instances of substances
-CREATE TABLE IF NOT EXISTS stimuli (
-    stimulus_id TEXT PRIMARY KEY,
-    paper_id TEXT NOT NULL REFERENCES papers(paper_id),
-    substance_id INTEGER NOT NULL REFERENCES substances(substance_id),
-    original_name TEXT,
-    supplier TEXT,
-    purity TEXT,
-    form TEXT,
-    details_json TEXT
-);
-
--- 6. samples: What panelists actually tasted
-CREATE TABLE IF NOT EXISTS samples (
-    sample_id TEXT PRIMARY KEY,
-    paper_id TEXT NOT NULL REFERENCES papers(paper_id),
-    experiment_id TEXT NOT NULL REFERENCES experiments(experiment_id),
-    sample_label TEXT,
-    base_matrix TEXT,
-    is_control BOOLEAN DEFAULT 0
-);
-
--- 7. sample_components: Junction table (sample ↔ stimulus with concentration)
-CREATE TABLE IF NOT EXISTS sample_components (
-    sample_id TEXT NOT NULL REFERENCES samples(sample_id),
-    stimulus_id TEXT NOT NULL REFERENCES stimuli(stimulus_id),
-    concentration REAL,
-    unit TEXT,
-    concentration_canonical REAL,
-    unit_canonical TEXT,
-    PRIMARY KEY (sample_id, stimulus_id)
-);
-
--- 8. results: Core data — sample × attribute → value
-CREATE TABLE IF NOT EXISTS results (
-    result_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    paper_id TEXT NOT NULL REFERENCES papers(paper_id),
-    experiment_id TEXT NOT NULL REFERENCES experiments(experiment_id),
-    sample_id TEXT REFERENCES samples(sample_id),
-    attribute_raw TEXT,
-    attribute_normalized TEXT,
-    attribute_category TEXT,
-    value REAL,
-    value_type TEXT,
-    error_value REAL,
-    error_type TEXT,
-    n INTEGER,
-    source_type TEXT,
-    source_location TEXT,
-    extraction_confidence TEXT,
-    run_id INTEGER REFERENCES extraction_runs(run_id),
-    context_json TEXT
-);
-
--- 9. extraction_runs: Audit trail for pipeline runs
+-- 6. extraction_runs: Audit trail for pipeline runs
 CREATE TABLE IF NOT EXISTS extraction_runs (
     run_id INTEGER PRIMARY KEY AUTOINCREMENT,
     paper_id TEXT NOT NULL REFERENCES papers(paper_id),
@@ -152,7 +113,7 @@ CREATE TABLE IF NOT EXISTS extraction_runs (
     notes TEXT
 );
 
--- 10. unit_conversions: Deterministic conversion rules
+-- 7. unit_conversions: Deterministic conversion rules
 CREATE TABLE IF NOT EXISTS unit_conversions (
     unit_raw TEXT NOT NULL,
     unit_canonical TEXT NOT NULL,
@@ -164,15 +125,11 @@ CREATE TABLE IF NOT EXISTS unit_conversions (
 
 INDEXES_SQL = """
 CREATE INDEX IF NOT EXISTS idx_experiments_paper ON experiments(paper_id);
-CREATE INDEX IF NOT EXISTS idx_stimuli_paper ON stimuli(paper_id);
-CREATE INDEX IF NOT EXISTS idx_stimuli_substance ON stimuli(substance_id);
-CREATE INDEX IF NOT EXISTS idx_samples_paper ON samples(paper_id);
-CREATE INDEX IF NOT EXISTS idx_samples_experiment ON samples(experiment_id);
-CREATE INDEX IF NOT EXISTS idx_results_paper ON results(paper_id);
-CREATE INDEX IF NOT EXISTS idx_results_experiment ON results(experiment_id);
-CREATE INDEX IF NOT EXISTS idx_results_sample ON results(sample_id);
-CREATE INDEX IF NOT EXISTS idx_results_attribute ON results(attribute_normalized);
-CREATE INDEX IF NOT EXISTS idx_results_run ON results(run_id);
+CREATE INDEX IF NOT EXISTS idx_observations_paper ON observations(paper_id);
+CREATE INDEX IF NOT EXISTS idx_observations_experiment ON observations(experiment_id);
+CREATE INDEX IF NOT EXISTS idx_observations_substance ON observations(substance_name);
+CREATE INDEX IF NOT EXISTS idx_observations_attribute ON observations(attribute_normalized);
+CREATE INDEX IF NOT EXISTS idx_observations_run ON observations(run_id);
 CREATE INDEX IF NOT EXISTS idx_extraction_runs_paper ON extraction_runs(paper_id);
 CREATE INDEX IF NOT EXISTS idx_substance_aliases_substance ON substance_aliases(substance_id);
 """
@@ -230,7 +187,7 @@ def _load_db_path() -> Path:
 
 
 def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
-    """Create / upgrade the v4 schema and return an open connection.
+    """Create / upgrade the v5 schema and return an open connection.
 
     Parameters
     ----------
@@ -269,7 +226,7 @@ def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Initialize v4 sensory-data SQLite schema.")
+    parser = argparse.ArgumentParser(description="Initialize v5 sensory-data SQLite schema.")
     parser.add_argument("--db", type=str, default=None, help="Override database path")
     args = parser.parse_args()
 

@@ -8,13 +8,15 @@ You are validating extracted sensory data against the original paper. You have b
 
 {tables_markdown}
 
-== EXTRACTED RESULTS (summary) ==
+== EXTRACTED OBSERVATIONS (summary) ==
 
 {extracted_results_summary}
 
 == EXTRACTED EXPERIMENTS ==
 
 {experiments_summary}
+
+Note: Observations include both sample-level measurements (substance at a concentration rated on an attribute) and stimulus-level derived metrics (e.g., power law exponents, EC50, Hill parameters) with value_type "derived_param".
 
 Paper ID: {paper_id}
 

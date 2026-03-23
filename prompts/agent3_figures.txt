@@ -1,4 +1,6 @@
-You are extracting numerical data from a figure in a sensory science paper. A previous extraction step has already extracted tabulated data. Your job is to extract ADDITIONAL data visible in this figure that is NOT already in the existing results.
+You are extracting numerical data from a figure in a sensory science paper. A previous extraction step has already extracted tabulated data into flat observation rows. Your job is to extract ADDITIONAL data visible in this figure that is NOT already captured.
+
+Paper ID: {paper_id}
 
 == FIGURE INFORMATION ==
 
@@ -6,32 +8,27 @@ Caption: {figure_caption}
 
 Description from article inventory: {figure_description}
 
-== EXISTING EXTRACTION CONTEXT ==
+== EXISTING DATA (skip duplicates) ==
 
-Known samples (use these sample_ids — do NOT invent new ones):
-{existing_sample_ids}
-
-Already-extracted results (skip any values that duplicate these):
-{existing_results_summary}
+Already-extracted observations (skip any values that duplicate these):
+{existing_observations_summary}
 
 Experiment context (method, scale, range):
 {experiment_context}
 
-Paper ID: {paper_id}
-
 == INSTRUCTIONS ==
 
 1. Examine the figure carefully and identify every numerical data point visible.
-2. PREFER using existing sample_ids from the provided list. Match by substance name, concentration, and any other identifying info in the figure legend/labels. If you encounter a sample in the figure that clearly does not match ANY existing sample, you MAY create a new sample_id using the format "{paper_id}__sample_fig_{N}" with source_type: "figure_created" and include full identifying info (substance name, concentration, matrix) in the result's context_json field. Flag these in "figure_created_samples". Only create new sample_ids as a last resort — always try to match existing samples first.
-3. Skip values already present in existing_results_summary to avoid duplication. If a value for the same sample × attribute combination already exists from a table or a prior figure, do NOT re-extract it. Record skipped values in "skipped_values".
-4. For each NEW data point, create a result row with all required fields.
+2. Skip values already present in existing observations. If a value for the same (substance, concentration, attribute) combination already exists, do NOT re-extract it. Record skipped values in "skipped_values".
+3. For each NEW data point, create a flat observation row with all fields below.
+4. For derived metrics visible in figures (e.g., fitted curve parameters, R² values shown in legends), use value_type "derived_param" with components: null, base_matrix: null.
 
 == READING FIGURES ==
 
 - Bar charts: Read the bar height against the y-axis. Read error bars (top of bar to top of error bar = error value). Note whether error bars are SE or SD (check the caption/legend).
 - Line plots: Read each data point where a marker appears. Interpolate from gridlines.
 - Spider/radar plots: Read each spoke value for each sample.
-- Dose-response curves: Read each plotted point along the curve.
+- Dose-response curves: Read each plotted point along the curve. Also extract fitted parameters (slopes, EC50) if shown in legend/annotation.
 - Box plots: Extract median, Q1, Q3, whisker endpoints if readable.
 - PCA/MFA biplots: Do NOT extract coordinates as sensory data — note in extraction_notes if relevant loadings are visible.
 - Heatmaps: Read cell values if labeled; otherwise estimate from the color scale.
@@ -45,39 +42,37 @@ Rate extraction_confidence for each value:
 
 == OUTPUT FORMAT ==
 
-Return a JSON object with exactly this structure:
+Return a JSON object:
 
 {
-  "new_results": [
+  "new_observations": [
     {
-      "experiment_id": "exp_id from experiment context",
-      "sample_id": "MUST use an existing sample_id from the provided list, or null if unknown",
-      "attribute_raw": "sweetness intensity",
+      "experiment": "exp1",
+      "substance": "sucrose",
+      "components": [{"substance": "sucrose", "concentration": 0.3, "unit": "M"}],
+      "base_matrix": "distilled water",
+      "is_control": false,
+      "attribute": "sweetness intensity",
       "attribute_normalized": "sweetness",
-      "attribute_category": "taste",
       "value": 42.5,
       "value_type": "raw_mean",
-      "error_value": 3.2,
+      "error": 3.2,
       "error_type": "se",
       "n": null,
+      "source": "Figure 1A",
       "source_type": "figure",
-      "source_location": "Figure 1A",
-      "extraction_confidence": "medium"
+      "confidence": "medium"
     }
   ],
-  "skipped_values": ["List of values skipped because they match existing results"],
-  "unmatched_samples": ["Sample labels seen in figure but not in existing sample list — only if you could not create a sample_id"],
-  "figure_created_samples": [
-    {"sample_id": "paper_id__sample_fig_1", "substance": "name", "concentration": "value unit", "label": "figure label"}
-  ],
+  "skipped_values": ["List of values skipped because they match existing observations"],
   "extraction_notes": "Free text about extraction quality, issues, legibility, or anything notable"
 }
 
 Field notes:
-- experiment_id: Match to the most appropriate experiment from the context. Use null if unclear.
-- attribute_category: One of "taste", "aroma", "texture", "appearance", "flavor", "trigeminal", "hedonic", "other".
-- value_type: One of "raw_mean", "raw_median", "frequency_pct", "dominance_rate", "relative_pct", "intensity", "ranking", "other".
-- error_type: One of "se", "sd", "ci_95", "range", null.
-- extraction_confidence: One of "high", "medium", "low".
+- experiment: Use "exp1", "exp2", etc. matching the experiment context provided.
+- value_type: One of "raw_mean", "raw_median", "frequency_pct", "dominance_rate", "relative_pct", "derived_param", "threshold".
+- error_type: One of "se", "sd", "ci95_lower", "ci95_upper", null.
+- confidence: One of "high", "medium", "low".
+- For stimulus-level derived metrics (slopes, EC50, etc.): set components and base_matrix to null; set value_type to "derived_param".
 
 Return ONLY the JSON.

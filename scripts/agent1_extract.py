@@ -91,9 +91,9 @@ def _build_article_text(article) -> str:
         parts.append(f"\n{section_name.upper()}:\n{section_text}")
 
     text = "\n".join(parts)
-    # Limit to ~30K chars (~10K tokens) to leave room for prompt + output
-    if len(text) > 30000:
-        text = text[:30000] + "\n\n[... truncated for context window ...]"
+    # Limit to 150K chars — Claude Sonnet handles 200K context
+    if len(text) > 150000:
+        text = text[:150000] + "\n\n[... truncated at 150K chars ...]"
     return text
 
 
@@ -108,6 +108,6 @@ def _get_tables_markdown(article) -> str:
         parts.append(md)
 
     text = "\n\n".join(parts)
-    if len(text) > 10000:
-        text = text[:10000] + "\n\n[... additional tables truncated ...]"
+    if len(text) > 80000:
+        text = text[:80000] + "\n\n[... additional tables truncated at 80K chars ...]"
     return text
