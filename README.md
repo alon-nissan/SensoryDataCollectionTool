@@ -1,4 +1,4 @@
-# Sensory Data Extraction Pipeline (v4)
+# Sensory Data Extraction Pipeline (v5)
 
 Automated extraction of sensory science data from published research papers into a normalized SQLite database using a 4-agent LLM pipeline.
 
@@ -6,9 +6,9 @@ Automated extraction of sensory science data from published research papers into
 
 This pipeline processes manually-downloaded HTML/PDF papers through four sequential LLM agents:
 
-1. **Agent 1 — Free extraction** (Sonnet): Reads parsed article, produces rich flexible JSON
-2. **Agent 2 — Structuring** (Sonnet): Maps JSON → relational SQLite rows across 10 tables
-3. **Agent 3 — Figure extraction** (Opus, vision): Extracts data from figure images
+1. **Agent 1 — Free extraction** (Sonnet): Reads parsed article, produces rich flexible JSON with separate stimuli (sourced compounds) and samples (tasted preparations)
+2. **Agent 2 — Structuring** (Sonnet): Transforms JSON into flat observation rows + peripheral context JSON
+3. **Agent 3 — Figure extraction** (Opus, vision): Extracts data from figure images as flat observations, with dedup against existing data
 4. **Agent 4 — Validation & correction** (Sonnet): Deterministic checks + targeted LLM corrections
 
 ## Quick Start
@@ -55,6 +55,7 @@ python scripts/orchestrate.py --file-list papers.csv
 --skip-figures     # Skip figure extraction (Agent 3)
 --force            # Re-extract even if output exists
 --validate-only    # Re-run validation (Agent 4) only
+--from-agent3      # Resume from Agent 3 (load cached Agent 1 & 2 artifacts)
 --dry-run          # Show what would be done
 ```
 
@@ -66,7 +67,7 @@ python scripts/orchestrate.py --file-list papers.csv
 │   ├── figures/            # Downloaded figure images
 │   ├── extractions/        # Agent output JSONs
 │   │   └── parts/          # Per-agent intermediate outputs (audit trail)
-│   └── sensory_data.db     # Primary SQLite database (v4 schema)
+│   └── sensory_data.db     # Primary SQLite database (v5 schema)
 ├── prompts/                # Agent prompt templates (agent1–agent4)
 ├── parsers/                # HTML/XML and PDF article parsers
 ├── scripts/                # Pipeline scripts + orchestrator
@@ -91,21 +92,20 @@ Local HTML/PDF
 
 ### Two-Layer Data Storage
 
-- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store with 10 relational tables.
-- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs preserved for audit/debugging.
+- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store with 7 relational tables (v5 schema).
+- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs + peripheral context JSON preserved for audit/debugging.
 
-### Database Schema (v4)
+### Database Schema (v5)
+
+Flat, denormalized schema. The old 5-level FK chain (substance → stimulus → sample_component → sample → result) was replaced with a single `observations` table. Peripheral metadata (panel info, sourcing, design) lives in JSON documents per paper.
 
 | Table | Purpose |
 |---|---|
-| `papers` | One row per paper (metadata, DOI, food category, validation status) |
-| `experiments` | One per experiment within a paper (method, scale, panel) |
+| `papers` | One row per paper (paper_id, DOI, title, year, journal, validation_status) |
+| `experiments` | One per experiment within a paper (method, scale_type, scale_range) |
+| `observations` | Core data: substance × attribute → value. Each row is self-contained with substance_name, components_json (full composition array), base_matrix, attribute, value, error, source. Supports sample-level, mixture, and stimulus-level derived metrics (components_json=NULL, value_type='derived_param'). |
 | `substances` | Global chemical entity registry, cross-paper (normalized name, CAS, SMILES) |
 | `substance_aliases` | Maps variant names → canonical `substance_id` |
-| `stimuli` | Paper-specific sourced instances of substances (supplier, purity, form) |
-| `samples` | What panelists actually tasted (label, base matrix, control flag) |
-| `sample_components` | Junction: sample ↔ stimulus with concentration + canonical units |
-| `results` | Core data: sample × attribute → value (with error, source, confidence) |
 | `extraction_runs` | Audit trail: prompt versions, models, cost, validation report |
 | `unit_conversions` | Deterministic unit conversion rules |
 
