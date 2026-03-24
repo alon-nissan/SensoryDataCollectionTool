@@ -12,7 +12,7 @@ from rich.console import Console
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.llm_extract import LLMClient, load_prompt
+from scripts.llm_extract import LLMClient, PromptTooLargeError, load_prompt
 from scripts.db import get_db, get_paper_observations, get_paper_experiments
 
 console = Console()
@@ -285,7 +285,7 @@ def _run_completeness_check(article, observations: list, experiments: list,
 
     # Build summaries
     obs_summary = []
-    for obs in observations[:300]:
+    for obs in observations:
         comps = obs.get("components") or []
         conc = comps[0].get("concentration") if comps else None
         obs_summary.append({
@@ -309,25 +309,27 @@ def _run_completeness_check(article, observations: list, experiments: list,
     # Build article text
     article_text = ""
     if hasattr(article, 'full_text'):
-        article_text = article.full_text[:50000]
+        article_text = article.full_text
 
     tables_md = ""
     if hasattr(article, 'tables'):
         tables_md = "\n\n".join(
             t.to_markdown() if hasattr(t, 'to_markdown') else str(t)
             for t in article.tables
-        )[:30000]
+        )
 
     prompt = prompt_template
     prompt = prompt.replace("{article_text}", article_text)
     prompt = prompt.replace("{tables_markdown}", tables_md)
-    prompt = prompt.replace("{extracted_results_summary}", json.dumps(obs_summary, indent=2)[:30000])
-    prompt = prompt.replace("{experiments_summary}", json.dumps(exp_summary, indent=2)[:5000])
+    prompt = prompt.replace("{extracted_results_summary}", json.dumps(obs_summary, indent=2))
+    prompt = prompt.replace("{experiments_summary}", json.dumps(exp_summary, indent=2))
     prompt = prompt.replace("{paper_id}", paper_id)
 
     try:
-        result = llm.extract_json(prompt, model=model)
+        result = llm.extract_json(prompt, model=model, agent="agent4_completeness")
         return result
+    except PromptTooLargeError as e:
+        return {"error": str(e), "overall_assessment": "skipped_too_large"}
     except Exception as e:
         return {"error": str(e), "overall_assessment": "error"}
 
@@ -348,7 +350,8 @@ def _run_spot_check(sampled_observations: list, article, llm: LLMClient, config:
             if fig_id and local_path and Path(local_path).exists():
                 figure_paths[fig_id] = local_path
 
-    for obs in sampled_observations[:5]:  # Limit to 5 to control cost
+    max_spot = config.get("extraction", {}).get("max_spot_check_observations", 5)
+    for obs in sampled_observations[:max_spot]:
         source_location = obs.get("source", obs.get("source_location", "unknown"))
         source_type = obs.get("source_type", "")
 

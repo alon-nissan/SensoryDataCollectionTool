@@ -11,7 +11,7 @@ from rich.console import Console
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.llm_extract import LLMClient, load_prompt
+from scripts.llm_extract import LLMClient, PromptTooLargeError, load_prompt
 from scripts.db import get_db, get_paper_observations, insert_observations_batch
 
 console = Console()
@@ -81,7 +81,7 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
         prompt = prompt.replace("{paper_id}", paper_id)
 
         try:
-            result = llm.extract_json_with_image(prompt, local_path, model=model)
+            result = llm.extract_json_with_image(prompt, local_path, model=model, agent="agent3")
 
             new_obs = result.get("new_observations", [])
             # Tag all observations with paper_id, run_id, source
@@ -110,6 +110,9 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
 
             console.print(f"    [green]✓ {fig_id}: {len(new_obs)} new data points[/green]")
 
+        except PromptTooLargeError as e:
+            console.print(f"    [yellow]⚠ {fig_id}: prompt too large ({e.prompt_chars:,} chars), skipping[/yellow]")
+            all_notes.append(f"{fig_id}: skipped — {e}")
         except Exception as e:
             console.print(f"    [red]✗ {fig_id}: {e}[/red]")
             all_notes.append(f"{fig_id}: extraction failed — {e}")
@@ -193,7 +196,7 @@ def _build_existing_observations_summary(agent2_output: dict) -> list[dict]:
     """Build compact dedup summary from Agent 2's observations."""
     observations = agent2_output.get("observations", [])
     summaries = []
-    for obs in observations[:300]:  # Cap to avoid context overflow
+    for obs in observations:
         components = obs.get("components") or []
         concentration = components[0].get("concentration") if components else None
         summaries.append({

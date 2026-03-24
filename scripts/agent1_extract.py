@@ -52,7 +52,7 @@ def run_agent1(article, study_id: str, config: dict = None,
 
     # Call LLM
     model = llm.get_model("agent1")
-    result = llm.extract_json(prompt, model=model)
+    result = llm.extract_json(prompt, model=model, agent="agent1")
 
     # Ensure study_id is set
     if "study_metadata" in result:
@@ -91,9 +91,6 @@ def _build_article_text(article) -> str:
         parts.append(f"\n{section_name.upper()}:\n{section_text}")
 
     text = "\n".join(parts)
-    # Limit to 150K chars — Claude Sonnet handles 200K context
-    if len(text) > 150000:
-        text = text[:150000] + "\n\n[... truncated at 150K chars ...]"
     return text
 
 
@@ -108,6 +105,4 @@ def _get_tables_markdown(article) -> str:
         parts.append(md)
 
     text = "\n\n".join(parts)
-    if len(text) > 80000:
-        text = text[:80000] + "\n\n[... additional tables truncated at 80K chars ...]"
     return text

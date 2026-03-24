@@ -11,6 +11,7 @@ llm:
   # Shared settings
   max_tokens: 32768
   temperature: 0.0
+  max_prompt_chars: 500000  # refuse API call if prompt text exceeds this (~143K tokens)
   max_retries: 3
   retry_delay_seconds: 5
 
@@ -40,6 +41,7 @@ extraction:
   # Agent 4 validation settings
   spot_check_fraction: 0.2    # Fraction of results to spot-check
   max_targeted_corrections: 10 # Max L2 targeted LLM corrections per paper
+  max_spot_check_observations: 5  # Max individual spot-check LLM calls (cost control)
 
 # Table Extraction (PDF)
 table_extraction:

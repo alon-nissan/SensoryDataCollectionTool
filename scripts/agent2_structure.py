@@ -55,11 +55,7 @@ def run_agent2(agent1_output: dict, paper_id: str, config: dict = None,
             vocab_data = json.load(f)
             attribute_vocab = vocab_data.get("mappings", {})
 
-    # Fill template — NO truncation (Claude handles 200K context)
     agent1_json = json.dumps(agent1_output, indent=2)
-    if len(agent1_json) > 150000:
-        agent1_json = agent1_json[:150000] + "\n\n[... truncated at 150K chars ...]"
-        console.print("  [yellow]⚠ Agent 1 JSON truncated at 150K chars[/yellow]")
 
     prompt = prompt_template
     prompt = prompt.replace("{agent1_json}", agent1_json)
@@ -68,7 +64,7 @@ def run_agent2(agent1_output: dict, paper_id: str, config: dict = None,
 
     # Call LLM
     model = llm.get_model("agent2")
-    result = llm.extract_json(prompt, model=model)
+    result = llm.extract_json(prompt, model=model, agent="agent2")
 
     n_obs = len(result.get("observations", []))
     n_exp = len(result.get("experiments", []))

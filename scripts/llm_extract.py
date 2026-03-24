@@ -21,6 +21,19 @@ def load_config():
         return yaml.safe_load(f)
 
 
+class PromptTooLargeError(Exception):
+    """Raised when an assembled prompt exceeds the configured character limit."""
+
+    def __init__(self, prompt_chars: int, limit: int, agent: str = "unknown"):
+        self.prompt_chars = prompt_chars
+        self.limit = limit
+        self.agent = agent
+        super().__init__(
+            f"Prompt too large for {agent}: {prompt_chars:,} chars "
+            f"(limit: {limit:,}, excess: {prompt_chars - limit:,})"
+        )
+
+
 class LLMClient:
     """Wrapper around the Anthropic Claude API with retry, cost tracking, and JSON output."""
 
@@ -48,6 +61,7 @@ class LLMClient:
         self.temperature = llm_config.get("temperature", 0.0)
         self.max_retries = llm_config.get("max_retries", 3)
         self.retry_delay = llm_config.get("retry_delay_seconds", 5)
+        self.max_prompt_chars = llm_config.get("max_prompt_chars", 500_000)
 
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
@@ -65,23 +79,35 @@ class LLMClient:
         """Get the model name for a specific agent (agent1, agent2, agent3, agent4)."""
         return self.agent_models.get(agent, self.text_model)
 
-    def extract_json(self, prompt: str, model: str = None, system: str = None) -> dict:
+    def _check_prompt_size(self, prompt_text: str, agent: str = "unknown"):
+        """Raise PromptTooLargeError if prompt exceeds configured limit."""
+        if self.max_prompt_chars <= 0:
+            return  # disabled
+        n = len(prompt_text)
+        if n > self.max_prompt_chars:
+            raise PromptTooLargeError(n, self.max_prompt_chars, agent)
+
+    def extract_json(self, prompt: str, model: str = None, system: str = None,
+                     agent: str = "unknown") -> dict:
         """Send a prompt and parse the response as JSON.
 
         Args:
             prompt: The user prompt (should request JSON output)
             model: Model to use (defaults to text_model)
             system: Optional system prompt
+            agent: Agent name for error reporting
 
         Returns:
             Parsed JSON dict from the response
         """
+        self._check_prompt_size(prompt, agent=agent)
         model = model or self.text_model
         response_text = self._call_api(prompt, model=model, system=system)
         return self._parse_json(response_text)
 
     def extract_json_with_image(self, prompt: str, image_path: str,
-                                 model: str = None, system: str = None) -> dict:
+                                 model: str = None, system: str = None,
+                                 agent: str = "unknown") -> dict:
         """Send a prompt with an image and parse the response as JSON.
 
         Args:
@@ -89,10 +115,12 @@ class LLMClient:
             image_path: Path to the image file
             model: Model to use (defaults to vision_model)
             system: Optional system prompt
+            agent: Agent name for error reporting
 
         Returns:
             Parsed JSON dict from the response
         """
+        self._check_prompt_size(prompt, agent=agent)
         model = model or self.vision_model
         image_data = self._encode_image(image_path)
         media_type = self._get_media_type(image_path)

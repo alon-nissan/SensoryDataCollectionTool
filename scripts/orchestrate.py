@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT_DIR))
 from scripts.parse_article import detect_file_type, parse_article
 from scripts.extract_figures import download_figures
 from scripts.paper_id import doi_to_paper_id, paper_id_from_filename
-from scripts.llm_extract import LLMClient
+from scripts.llm_extract import LLMClient, PromptTooLargeError
 from scripts.init_db import init_database
 from scripts.db import (
     get_db,
@@ -489,6 +489,26 @@ def run_pipeline_from_file(
             f"${cost.get('total_estimated_cost_usd', 0):.4f}"
         )
 
+    except PromptTooLargeError as exc:
+        result["status"] = "too_complex"
+        result["error"] = str(exc)
+        console.print(f"  [bold yellow]⊘ Paper too complex:[/] {exc}")
+        # Update DB records if available
+        try:
+            update_extraction_run(
+                conn, run_id,
+                status="skipped_too_large",
+                notes=str(exc),
+            )
+            conn.execute(
+                "UPDATE papers SET validation_status = 'too_complex' WHERE paper_id = ?",
+                (paper_id,),
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass  # DB update is best-effort
+
     except Exception as exc:
         result["status"] = "error"
         result["error"] = str(exc)
@@ -557,6 +577,9 @@ def _print_summary(results: list[dict]) -> None:
             ok += 1
         elif status == "skipped":
             status_str = "[yellow]⊘ skip[/]"
+            skipped += 1
+        elif status == "too_complex":
+            status_str = "[bold yellow]⊘ too complex[/]"
             skipped += 1
         else:
             status_str = f"[bold red]✗ {status}[/]"
