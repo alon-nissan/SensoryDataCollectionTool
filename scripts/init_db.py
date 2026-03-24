@@ -3,9 +3,9 @@
 
 v5 changes (from v4):
 - Collapsed stimuli, samples, sample_components, results → observations
-- Slimmed papers (15 → 7 cols) and experiments (11 → 6 cols)
+- Slimmed papers (15 → 8 cols) and experiments (11 → 6 cols)
 - Added components_json for mixture handling
-- Peripheral data now stored as JSON documents, not in SQL
+- Peripheral data stored as context_json column on papers table
 
 Usage:
     python scripts/init_db.py          # creates/updates data/sensory_data.db
@@ -32,13 +32,14 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 TABLES_SQL = """
--- 1. papers: One row per paper (slim — peripheral metadata in JSON docs)
+-- 1. papers: One row per paper (context_json stores peripheral metadata inline)
 CREATE TABLE IF NOT EXISTS papers (
     paper_id TEXT PRIMARY KEY,
     doi TEXT UNIQUE,
     title TEXT,
     year INTEGER,
     journal TEXT,
+    context_json TEXT,
     latest_run_id INTEGER REFERENCES extraction_runs(run_id),
     validation_status TEXT DEFAULT 'pending'
 );

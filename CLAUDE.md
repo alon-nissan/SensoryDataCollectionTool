@@ -62,16 +62,16 @@ File type detection (`scripts/parse_article.py: detect_file_type()`) routes `.pd
 
 ### Two-Layer Data Storage
 
-- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store. 7 relational tables (v5 schema).
-- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs + peripheral context JSON preserved for audit/debugging.
+- **Layer 1 — SQLite database** (`data/sensory_data.db`): Primary data store. 7 relational tables (v5 schema). Peripheral metadata stored in `papers.context_json` column.
+- **Layer 2 — JSON artifacts** (`data/extractions/parts/`): Agent 1–4 outputs preserved for audit/debugging.
 
 ### Database Schema (v5)
 
-Flat, denormalized schema. The old 5-level FK chain (substance → stimulus → sample_component → sample → result) was replaced with a single `observations` table. Peripheral metadata (panel info, sourcing, design) lives in JSON documents per paper.
+Flat, denormalized schema. The old 5-level FK chain (substance → stimulus → sample_component → sample → result) was replaced with a single `observations` table. Peripheral metadata (panel info, sourcing, design) lives in the `papers.context_json` column.
 
 | Table | Purpose |
 |---|---|
-| `papers` | One row per paper (paper_id, DOI, title, year, journal, validation_status) |
+| `papers` | One row per paper (paper_id, DOI, title, year, journal, context_json, validation_status) |
 | `experiments` | One per experiment within a paper (method, scale_type, scale_range) |
 | `observations` | Core data: substance × attribute → value. Denormalized — each row is self-contained with substance_name, components_json (full composition array with concentrations), base_matrix, attribute, value, error, source. Supports sample-level, mixture (multi-element components_json), and stimulus-level derived metrics (components_json=NULL, value_type='derived_param'). |
 | `substances` | Global chemical entity registry, cross-paper (normalized name, CAS, SMILES) |
@@ -79,7 +79,7 @@ Flat, denormalized schema. The old 5-level FK chain (substance → stimulus → 
 | `extraction_runs` | Audit trail: prompt versions, models, cost, validation report |
 | `unit_conversions` | Deterministic unit conversion rules (seeded by `init_db.py`) |
 
-Key design: LLM agents produce flat observation rows + peripheral JSON. Deterministic Python code handles ID generation (`{paper_id}__exp{N}`), substance registry resolution, and DB commits. No IDs cross-referenced by the LLM.
+Key design: LLM agents produce flat observation rows + peripheral context JSON. Agent 2 stores peripheral context in `papers.context_json`. Deterministic Python code handles ID generation (`{paper_id}__exp{N}`), substance registry resolution, and DB commits. No IDs cross-referenced by the LLM.
 
 ### Parser Hierarchy
 

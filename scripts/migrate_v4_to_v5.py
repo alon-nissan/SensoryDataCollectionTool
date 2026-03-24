@@ -3,8 +3,8 @@
 
 Denormalizes stimuli + samples + sample_components + results → observations.
 Infrastructure tables (substances, substance_aliases, extraction_runs, unit_conversions)
-are copied as-is. Peripheral data from old papers/experiments columns is saved as
-context.json files per paper.
+are copied as-is. Peripheral data from old papers/experiments columns is stored in
+the papers.context_json column.
 
 Usage:
     python scripts/migrate_v4_to_v5.py                      # default paths
@@ -284,17 +284,15 @@ def migrate(v4_path: Path, v5_path: Path, config: dict, dry_run: bool = False):
 
     console.print(f"  {len(results)} results → {obs_count} observations")
 
-    # ── 5. Save peripheral context JSON files ─────────────────────────
+    # ── 5. Store peripheral context in papers.context_json ─────────────
     console.print("[cyan]5. Peripheral context[/cyan]")
-    extractions_dir = ROOT_DIR / config["paths"]["extractions_dir"]
 
     for paper_id, context in peripheral_data.items():
-        parts_dir = extractions_dir / "parts" / paper_id
-        parts_dir.mkdir(parents=True, exist_ok=True)
-        context_path = parts_dir / "context.json"
         if not dry_run:
-            with open(context_path, "w") as f:
-                json.dump(context, f, indent=2, ensure_ascii=False)
+            v5.execute(
+                "UPDATE papers SET context_json = ? WHERE paper_id = ?",
+                (json.dumps(context, ensure_ascii=False), paper_id),
+            )
         console.print(f"  Saved context for {paper_id}")
 
     # ── 6. Commit and verify ──────────────────────────────────────────

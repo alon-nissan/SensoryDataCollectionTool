@@ -45,9 +45,11 @@ def insert_paper(conn: sqlite3.Connection, paper: dict) -> str:
     """Insert or update a paper record. Returns paper_id."""
     cols = [
         "paper_id", "doi", "title", "year", "journal",
-        "validation_status",
+        "context_json", "validation_status",
     ]
     values = {c: paper.get(c) for c in cols}
+    if isinstance(values.get("context_json"), dict):
+        values["context_json"] = json.dumps(values["context_json"])
 
     placeholders = ", ".join(f":{c}" for c in cols)
     col_names = ", ".join(cols)

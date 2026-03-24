@@ -180,10 +180,15 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
                 f"(invalid experiment refs)[/yellow]"
             )
 
-        # 4. Save peripheral context as JSON file
+        # 4. Save peripheral context to papers.context_json
         context = structured.get("context", {})
         if context:
-            _save_peripheral_context(paper_id, context, config)
+            conn.execute(
+                "UPDATE papers SET context_json = ? WHERE paper_id = ?",
+                (json.dumps(context, ensure_ascii=False), paper_id),
+            )
+            conn.commit()
+            console.print(f"  [dim]Saved peripheral context → papers.context_json[/dim]")
 
         # 5. Resolve substances (deterministic, post-extraction)
         _ensure_substance_registry(conn, observations, context)
@@ -196,22 +201,6 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
         conn.close()
 
     return output
-
-
-def _save_peripheral_context(paper_id: str, context: dict, config: dict = None):
-    """Save peripheral context as a JSON document per paper."""
-    if config is None:
-        with open(ROOT_DIR / "config.yaml") as f:
-            config = yaml.safe_load(f)
-
-    parts_dir = ROOT_DIR / config["paths"]["extractions_dir"] / "parts" / paper_id
-    parts_dir.mkdir(parents=True, exist_ok=True)
-
-    context_path = parts_dir / "context.json"
-    with open(context_path, "w") as f:
-        json.dump(context, f, indent=2, ensure_ascii=False)
-
-    console.print(f"  [dim]Saved peripheral context → {context_path.name}[/dim]")
 
 
 def _ensure_substance_registry(conn, observations: list[dict], context: dict):
