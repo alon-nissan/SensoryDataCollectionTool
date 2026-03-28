@@ -27,6 +27,7 @@ sensory_data.db*
 
 # Analysis outputs
 analysis/
+docs/
 
 # OS files
 .DS_Store
