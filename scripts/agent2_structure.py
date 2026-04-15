@@ -13,8 +13,8 @@ sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, load_prompt
 from scripts.db import (
-    get_db, insert_paper, insert_experiment, insert_substance,
-    add_substance_alias, insert_observations_batch,
+    get_db, insert_paper, insert_experiment, insert_panel,
+    insert_substance, add_substance_alias, insert_observations_batch,
     resolve_substance_by_alias, resolve_substance_by_name,
     resolve_substance_by_cas,
 )
@@ -68,10 +68,12 @@ def run_agent2(agent1_output: dict, paper_id: str, config: dict = None,
 
     n_obs = len(result.get("observations", []))
     n_exp = len(result.get("experiments", []))
+    n_panels = len(result.get("panels", []))
     n_derived = sum(1 for o in result.get("observations", [])
                     if o.get("value_type") == "derived_param")
     console.print(f"  [green]✓ Agent 2 complete: "
                   f"{n_exp} experiments, "
+                  f"{n_panels} panels, "
                   f"{n_obs} observations ({n_derived} derived metrics)[/green]")
 
     return result
@@ -92,7 +94,7 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
     """
     conn = get_db(config)
     output = {
-        "counts": {"papers": 0, "experiments": 0, "observations": 0},
+        "counts": {"papers": 0, "experiments": 0, "panels": 0, "observations": 0},
         "dropped": [],
         "db_insert_error": None,
     }
@@ -124,12 +126,51 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
                 output["dropped"].append(reason)
                 console.print(f"  [yellow]⚠ Skipped {reason}[/yellow]")
 
-        # 3. Materialize observations (flat loop — no FK chains)
+        # 3. Insert panels (measuring devices)
+        # Build label → panel_id map for observation FK assignment
+        panel_label_to_id: dict[str, str] = {}
+        # First pass: insert full panels (parent_panel_label == null) before subgroups
+        panels_raw = structured.get("panels", [])
+        for panel in sorted(panels_raw, key=lambda p: 0 if not p.get("parent_panel_label") else 1):
+            panel_label = panel.get("panel_label", "unknown")
+            panel_id = f"{paper_id}__panel_{panel_label}"
+
+            parent_label = panel.get("parent_panel_label")
+            parent_panel_id = panel_label_to_id.get(parent_label) if parent_label else None
+
+            try:
+                insert_panel(conn, {
+                    "panel_id": panel_id,
+                    "paper_id": paper_id,
+                    "parent_panel_id": parent_panel_id,
+                    "panel_label": panel_label,
+                    "panel_size": panel.get("panel_size"),
+                    "attributes_json": panel.get("attributes_json"),
+                    "description": panel.get("description"),
+                })
+                panel_label_to_id[panel_label] = panel_id
+                counts["panels"] += 1
+            except Exception as e:
+                reason = f"panel '{panel_id}': {e}"
+                output["dropped"].append(reason)
+                console.print(f"  [yellow]⚠ Skipped {reason}[/yellow]")
+
+        # Build fallback map: for each experiment prefix, the full (non-subgroup) panel
+        _full_panels: dict[str, str] = {}
+        for p in panels_raw:
+            if not p.get("parent_panel_label"):
+                exp = p.get("experiment", "")
+                label = p.get("panel_label", "")
+                if exp and label in panel_label_to_id:
+                    _full_panels[exp] = panel_label_to_id[label]
+
+        # 4. Materialize observations (flat loop — no FK chains)
         valid_exp_ids = {row["experiment_id"] for row in conn.execute(
             "SELECT experiment_id FROM experiments WHERE paper_id = ?",
             (paper_id,),
         ).fetchall()}
 
+        panel_mismatches = 0
         observations = []
         for obs in structured.get("observations", []):
             # Build experiment_id from label
@@ -144,6 +185,14 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
                 )
                 continue
 
+            # Resolve panel_id: exact match → fallback to experiment's full panel → NULL
+            obs_panel_label = obs.get("panel_label")
+            panel_id = panel_label_to_id.get(obs_panel_label) if obs_panel_label else None
+            if obs_panel_label and panel_id is None:
+                panel_id = _full_panels.get(exp_label)
+                if panel_id:
+                    panel_mismatches += 1
+
             # Build components_json
             components = obs.get("components")
             if isinstance(components, list):
@@ -154,6 +203,8 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
             observations.append({
                 "paper_id": paper_id,
                 "experiment_id": experiment_id,
+                "panel_id": panel_id,
+                "measurement_domain": obs.get("measurement_domain", "sensory"),
                 "substance_name": obs.get("substance"),
                 "components_json": components_json,
                 "base_matrix": obs.get("base_matrix"),
@@ -179,6 +230,12 @@ def commit_agent2_to_db(structured: dict, paper_id: str, run_id: int,
                 f"  [yellow]⚠ {n_dropped} observations dropped "
                 f"(invalid experiment refs)[/yellow]"
             )
+        if panel_mismatches:
+            console.print(
+                f"  [yellow]⚠ {panel_mismatches} observations had unrecognized "
+                f"panel_label — fell back to experiment's full panel[/yellow]"
+            )
+        console.print(f"  [dim]Inserted {counts['panels']} panels[/dim]")
 
         # 4. Save peripheral context to papers.context_json
         context = structured.get("context", {})

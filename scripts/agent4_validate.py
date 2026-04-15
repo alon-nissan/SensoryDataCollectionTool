@@ -13,7 +13,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, PromptTooLargeError, load_prompt
-from scripts.db import get_db, get_paper_observations, get_paper_experiments
+from scripts.db import get_db, get_paper_observations, get_paper_experiments, get_panels_for_paper
 
 console = Console()
 
@@ -67,10 +67,16 @@ def run_agent4(article, agent1_output: dict, agent2_output: dict,
         all_observations = all_observations + agent3_output.get("observations", [])
 
     experiments = agent2_output.get("experiments", [])
+    panels = agent2_output.get("panels", [])
 
     # ── Level 1: Deterministic auto-correction ──
     console.print("    [dim]L1: Deterministic checks...[/dim]")
     l1_corrections = _run_level1_checks(all_observations, experiments)
+    # Panel-specific checks
+    panel_issues = _run_panel_checks(all_observations, panels, paper_id, config)
+    l1_corrections.extend(panel_issues)
+    if panel_issues:
+        console.print(f"    [yellow]Panel checks: {len(panel_issues)} issues found[/yellow]")
     report["l1_corrections"] = l1_corrections
 
     if l1_corrections:
@@ -400,6 +406,81 @@ def _run_spot_check(sampled_observations: list, article, llm: LLMClient, config:
         "issues_found": len(issues),
         "issues": issues,
     }
+
+
+_DEMOGRAPHIC_KEYWORDS = {
+    "mean_age", "age", "age_mean", "mean age", "bmi", "body mass index",
+    "gender", "sex", "female", "male", "percentage female", "percent female",
+    "gender ratio", "sex ratio", "taster status", "genotype",
+    "height", "weight", "number of panelists", "panel size",
+}
+
+
+def _run_panel_checks(observations: list, panels: list, paper_id: str, config: dict) -> list:
+    """Panel-specific deterministic checks.
+
+    1. Demographic contamination: observations whose attribute looks like a panel demographic
+    2. Panel FK: observations referencing a panel_label that wasn't created
+    3. Subgroup size: subgroup panel_size must be ≤ parent panel_size
+    """
+    issues = []
+    panel_labels = {p.get("panel_label") for p in panels}
+
+    for i, obs in enumerate(observations):
+        attr_raw = (obs.get("attribute") or obs.get("attribute_raw") or "").lower().strip()
+
+        # 1. Demographic contamination check
+        if any(kw in attr_raw for kw in _DEMOGRAPHIC_KEYWORDS):
+            issues.append({
+                "observation_index": i,
+                "issue": "demographic_as_observation",
+                "description": (
+                    f"Attribute '{attr_raw}' looks like a panel demographic, not a sensory measurement. "
+                    "Panel attributes (age, BMI, gender, PROP status) must be stored in the panels table."
+                ),
+                "substance": obs.get("substance", obs.get("substance_name")),
+                "attribute": attr_raw,
+                "needs_human_review": True,
+            })
+
+        # 2. Panel FK check
+        panel_label = obs.get("panel_label")
+        if panel_label and panel_labels and panel_label not in panel_labels:
+            issues.append({
+                "observation_index": i,
+                "issue": "invalid_panel_label",
+                "description": (
+                    f"Observation references panel_label '{panel_label}' which is not in the panels list."
+                ),
+                "substance": obs.get("substance", obs.get("substance_name")),
+                "attribute": attr_raw,
+                "needs_human_review": True,
+            })
+
+    # 3. Subgroup size check (from DB panels if available)
+    try:
+        conn = get_db(config)
+        db_panels = get_panels_for_paper(conn, paper_id)
+        conn.close()
+        panel_size_map = {p["panel_id"]: p.get("panel_size") for p in db_panels}
+        for panel in db_panels:
+            parent_id = panel.get("parent_panel_id")
+            size = panel.get("panel_size")
+            if parent_id and size is not None:
+                parent_size = panel_size_map.get(parent_id)
+                if parent_size is not None and size > parent_size:
+                    issues.append({
+                        "issue": "subgroup_size_exceeds_parent",
+                        "description": (
+                            f"Subgroup panel '{panel['panel_id']}' (n={size}) is larger than "
+                            f"parent panel '{parent_id}' (n={parent_size})."
+                        ),
+                        "needs_human_review": True,
+                    })
+    except Exception:
+        pass  # DB may not exist yet during pipeline runs
+
+    return issues
 
 
 def _find_duplicates(observations: list) -> list:

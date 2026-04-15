@@ -12,7 +12,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, PromptTooLargeError, load_prompt
-from scripts.db import get_db, get_paper_observations, insert_observations_batch
+from scripts.db import get_db, get_paper_observations, get_panels_for_paper, insert_observations_batch
 
 console = Console()
 
@@ -50,6 +50,8 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
     existing_obs_summary = _build_existing_observations_summary(agent2_output)
     experiment_context = _build_experiment_context(agent2_output)
     experiment_context_str = json.dumps(experiment_context, indent=2)
+    panel_context = _build_panel_context(agent2_output, paper_id, config)
+    panel_context_str = json.dumps(panel_context, indent=2)
 
     all_observations = []
     all_notes = []
@@ -78,6 +80,7 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
         prompt = prompt.replace("{figure_description}", fig_description)
         prompt = prompt.replace("{existing_observations_summary}", dedup_summary_str)
         prompt = prompt.replace("{experiment_context}", experiment_context_str)
+        prompt = prompt.replace("{panel_context}", panel_context_str)
         prompt = prompt.replace("{paper_id}", paper_id)
 
         try:
@@ -135,8 +138,19 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
                 (paper_id,),
             ).fetchall()}
 
+            # Build panel label → panel_id map for FK resolution
+            panel_rows = conn.execute(
+                "SELECT panel_id, panel_label, parent_panel_id FROM panels WHERE paper_id = ?",
+                (paper_id,),
+            ).fetchall()
+            panel_label_to_id = {r["panel_label"]: r["panel_id"] for r in panel_rows}
+            # Fallback map: for each experiment prefix, find the full (non-subgroup) panel
+            _full_panels = {r["panel_label"].split("_")[0]: r["panel_id"]
+                           for r in panel_rows if not r["parent_panel_id"]}
+
             db_rows = []
             dropped = []
+            panel_mismatches = 0
             for obs in all_observations:
                 exp_label = obs.get("experiment", "exp1")
                 experiment_id = f"{paper_id}__exp{exp_label.replace('exp', '')}"
@@ -148,6 +162,15 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
                     )
                     continue
 
+                # Resolve panel_id: exact match → fallback to experiment's full panel → NULL
+                obs_panel_label = obs.get("panel_label")
+                panel_id = panel_label_to_id.get(obs_panel_label) if obs_panel_label else None
+                if obs_panel_label and panel_id is None:
+                    # Fallback: try to find the full panel for this experiment
+                    panel_id = _full_panels.get(exp_label)
+                    if panel_id:
+                        panel_mismatches += 1
+
                 components = obs.get("components")
                 if isinstance(components, list):
                     components_json = components
@@ -157,6 +180,8 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
                 db_rows.append({
                     "paper_id": paper_id,
                     "experiment_id": experiment_id,
+                    "panel_id": panel_id,
+                    "measurement_domain": obs.get("measurement_domain", "sensory"),
                     "substance_name": obs.get("substance"),
                     "components_json": components_json,
                     "base_matrix": obs.get("base_matrix"),
@@ -180,6 +205,8 @@ def run_agent3(figure_metadata: list, agent1_output: dict, agent2_output: dict,
             if dropped:
                 output["dropped"] = dropped
                 console.print(f"  [yellow]⚠ {len(dropped)} observations dropped (invalid experiment refs)[/yellow]")
+            if panel_mismatches:
+                console.print(f"  [yellow]⚠ {panel_mismatches} observations had unrecognized panel_label — fell back to experiment's full panel[/yellow]")
             console.print(f"  [green]✓ Agent 3 complete: {inserted} figure data points inserted[/green]")
 
         except Exception as e:
@@ -221,6 +248,42 @@ def _build_experiment_context(agent2_output: dict) -> list[dict]:
         }
         for e in experiments
     ]
+
+
+def _build_panel_context(agent2_output: dict, paper_id: str, config: dict) -> list[dict]:
+    """Build panel context (label, experiment, size) for Agent 3.
+
+    Prefers panels from Agent 2's output; falls back to DB query if panels are absent.
+    """
+    panels = agent2_output.get("panels", [])
+    if panels:
+        return [
+            {
+                "panel_label": p.get("panel_label"),
+                "experiment": p.get("experiment"),
+                "panel_size": p.get("panel_size"),
+                "parent_panel_label": p.get("parent_panel_label"),
+            }
+            for p in panels
+        ]
+    # Fallback: read from DB (e.g., when resuming from Agent 3)
+    try:
+        conn = get_db(config)
+        rows = conn.execute(
+            "SELECT panel_label, panel_size, parent_panel_id FROM panels WHERE paper_id = ?",
+            (paper_id,),
+        ).fetchall()
+        conn.close()
+        return [
+            {
+                "panel_label": r["panel_label"],
+                "panel_size": r["panel_size"],
+                "parent_panel_label": None,  # simplified fallback
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
 
 
 def _get_figure_description(agent1_output: dict, figure_id: str) -> str:

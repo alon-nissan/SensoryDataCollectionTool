@@ -16,6 +16,9 @@ Already-extracted observations (skip any values that duplicate these):
 Experiment context (method, scale, range):
 {experiment_context}
 
+Panel context (available measuring devices):
+{panel_context}
+
 == INSTRUCTIONS ==
 
 1. Examine the figure carefully and identify every numerical data point visible.
@@ -48,6 +51,8 @@ Return a JSON object:
   "new_observations": [
     {
       "experiment": "exp1",
+      "panel_label": "exp1_full",
+      "measurement_domain": "sensory",
       "substance": "sucrose",
       "components": [{"substance": "sucrose", "concentration": 0.3, "unit": "M"}],
       "base_matrix": "distilled water",
@@ -68,6 +73,8 @@ Return a JSON object:
 
 Field notes:
 - experiment: Use "exp1", "exp2", etc. matching the experiment context provided.
+- panel_label: MUST be one of the panel_label values from the panel context list above. Do NOT invent new labels. If uncertain which subgroup, use the full panel (non-subgroup) for that experiment.
+- measurement_domain: "sensory" for taste/smell/texture/appearance ratings; "psychological" for mood/emotion scales (PANAS, etc.).
 - value_type: One of "raw_mean", "raw_median", "frequency_pct", "dominance_rate", "relative_pct", "derived_param", "threshold".
 - error_type: One of "se", "sd", "ci95_lower", "ci95_upper", null.
 - confidence: One of "high", "medium", "low".

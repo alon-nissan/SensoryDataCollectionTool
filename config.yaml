@@ -17,10 +17,10 @@ llm:
 
 # Prompt Versions (for extraction_runs tracking)
 prompt_versions:
-  agent1: "v2.0"
-  agent2: "v2.0"
-  agent3: "v2.0"
-  agent4: "v2.0"
+  agent1: "v3.0"  # v3.0: added structured panel extraction with demographics/sensory_traits/recruitment
+  agent2: "v3.0"  # v3.0: added panels output, panel_label + measurement_domain on observations
+  agent3: "v3.0"  # v3.0: added panel_label + measurement_domain to figure observations
+  agent4: "v3.0"  # v3.0: added panel contamination and panel FK validation checks
 
 # File Paths
 paths:

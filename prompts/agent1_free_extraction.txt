@@ -63,12 +63,18 @@ Produce a JSON object with these top-level sections:
       "description": "Brief description of what this experiment tests",
 
       "panel": {
+        "label": "short unique label for this panel within the paper (e.g., 'exp1_full', 'exp3_super_tasters')",
         "type": "trained / untrained / consumer / expert / semi-trained",
         "size": integer,
-        "demographics": "age range, gender split, any reported demographics",
-        "screening": "how panelists were screened (e.g., PROP taster status, threshold tests)",
-        "recruitment": "how panelists were recruited",
-        "training": "training protocol description if applicable"
+        "parent_label": "label of parent panel if this is a subgroup, otherwise null",
+        "demographics": "object — capture reported demographic info with descriptive snake_case keys. Common keys: mean_age, age_sd, age_range, gender_ratio_female, mean_bmi, ethnicity. Include whatever the paper reports.",
+        "sensory_traits": "object — capture whatever sensory-relevant traits the paper reports. Use descriptive snake_case keys. Examples: training_level, genotype, taste_sensitivity, smoking_status, olfactory_threshold, color_vision, dietary_restrictions, medication_use. Do NOT use a fixed set of keys — adapt to whatever the paper reports.",
+        "recruitment": {
+          "source": "e.g. 'university students', 'community volunteers', or null",
+          "screening_criteria": "description of inclusion/exclusion criteria or null",
+          "compensation": "e.g. 'course credit', 'monetary', or null"
+        },
+        "description": "free-text description of this panel and any notes"
       },
 
       "design": {
@@ -126,6 +132,8 @@ Produce a JSON object with these top-level sections:
         {
           "description": "What this data block represents (e.g., 'Mean sweetness intensity ratings', 'CATA frequencies for aroma attributes')",
           "attribute": "sensory attribute name if applicable (e.g., 'sweetness', 'bitterness', 'overall_liking')",
+          "measurement_domain": "sensory (for taste/smell/texture/appearance ratings) or psychological (for mood scales like PANAS, emotion ratings)",
+          "panel_label": "label of the panel that produced these measurements — must match a panel.label in this experiment",
           "measure_type": "mean / median / frequency / proportion / dominance_rate / percentage / ranking / other",
           "values": [
             {
@@ -216,6 +224,11 @@ with their respective sources noted.
 For dose-response studies, concentrations are the x-axis variable — they are essential
 for data interpretation. Each concentration level should become a separate sample with
 its concentration value explicitly recorded.
+
+PANEL vs SENSORY DATA (CRITICAL):
+Panel attributes (mean_age, BMI, gender ratio, PROP status, training level) describe the measuring device — WHO the panelists are. They must appear ONLY in the panel object within each experiment — NEVER in sensory_data entries. Do NOT create sensory_data entries for age, BMI, gender ratio, or any other descriptor of the panelists themselves.
+Sensory data entries must only contain actual measured values: taste intensity ratings, hedonic scores, CATA frequencies, TDS temporal curves, PANAS mood scores, etc.
+If a paper reports results separately for subgroups (e.g., PROP super-tasters vs non-tasters, males vs females), each subgroup is a SEPARATE PANEL within that experiment — give it its own panel object with parent_label pointing to the full panel, and its own sensory_data entries.
 
 ADDITIONAL GUIDELINES:
 

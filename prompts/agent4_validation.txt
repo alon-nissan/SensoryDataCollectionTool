@@ -41,6 +41,7 @@ Paper ID: {paper_id}
    - Are n values consistent within experiments?
    - Are scale types consistent within experiments?
    - Do sample labels match between experiments?
+   - PANEL CONTAMINATION: Are there observations whose attribute looks like a panel demographic (e.g., "mean_age", "age", "BMI", "body mass index", "gender", "sex ratio", "percentage female", "PROP status")? These should be panel attributes, not observations — flag as high priority if found.
 
 4. DUPLICATE CANDIDATES: Identify cases where the same underlying data point may have been extracted twice (e.g., once from a table and once from a figure). For each pair:
    - Compare the values — are they identical or within rounding tolerance?

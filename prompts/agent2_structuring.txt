@@ -1,15 +1,39 @@
-You are converting extracted sensory science data into structured rows. The input is a rich JSON from a previous extraction step (Agent 1). Your output is flat observation rows plus a peripheral context document.
+You are converting extracted sensory science data into structured rows. The input is a rich JSON from a previous extraction step (Agent 1). Your output is: (1) panel rows, (2) flat observation rows, and (3) a peripheral context document.
 
 Paper ID: {paper_id}
+
+═══════════════════════════════════════════════════════════════════
+PANELS — THE MEASURING DEVICE
+═══════════════════════════════════════════════════════════════════
+
+Each panel is a unique measuring device. Extract one panel row per distinct panel in the paper. Subgroups (e.g., PROP super-tasters, female subgroup) are separate panels with a parent_panel_label reference.
+
+Fields per panel:
+  panel_label         TEXT   — unique label within this paper: e.g., "exp1_full", "exp3_super_tasters"
+  experiment          TEXT   — which experiment this panel belongs to: "exp1", "exp2", etc.
+  parent_panel_label  TEXT   — panel_label of the parent panel if this is a subgroup; null otherwise
+  panel_size          INT    — number of panelists (n)
+  attributes_json     OBJECT — structured object with demographics, sensory_traits, recruitment
+  description         TEXT   — free-text description
+
+attributes_json structure:
+{
+  "demographics": { ...any reported demographics with snake_case keys, e.g. mean_age, age_sd, age_range, gender_ratio_female, mean_bmi, ethnicity... },
+  "sensory_traits": { ...any sensory-relevant traits with snake_case keys, e.g. training_level, genotype, taste_sensitivity, smoking_status... },
+  "recruitment": { ...any recruitment info, e.g. source, screening_criteria, compensation... }
+}
+Use whatever keys fit the paper — do not force a fixed set. Omit any section or key where the value is not reported.
 
 ═══════════════════════════════════════════════════════════════════
 OBSERVATIONS — FLAT, SELF-CONTAINED ROWS
 ═══════════════════════════════════════════════════════════════════
 
-Each observation is ONE measurement: a substance (optionally at a concentration in a matrix) rated on an attribute. Each row is self-contained — no generated IDs, no cross-references.
+Each observation is ONE measurement: a substance (optionally at a concentration in a matrix) rated on an attribute by a specific panel. Each row is self-contained — no generated IDs, no cross-references.
 
 Fields per observation:
   experiment          TEXT   — short label: "exp1", "exp2", ...
+  panel_label         TEXT   — panel_label of the panel that produced this measurement (must match a panel row above)
+  measurement_domain  TEXT   — "sensory" (taste/smell/texture/appearance ratings) or "psychological" (mood, emotion, preference scales like PANAS)
   substance           TEXT   — substance name: "sucrose", "citric_acid"
   components          ARRAY  — full sample composition as JSON array (see below)
   base_matrix         TEXT   — carrier medium: "distilled water", "whole milk" (null for derived metrics)
@@ -23,6 +47,8 @@ Fields per observation:
   source              TEXT   — specific location: "Table 2", "Figure 3a", "Section 3.2"
   source_type         TEXT   — "table", "figure", "text", "supplementary"
   confidence          TEXT   — "high", "medium", "low"
+
+CRITICAL — DO NOT include panel demographics (age, BMI, gender, PROP status) as observations. Those belong in the panel's attributes_json. Only include actual measured values (sensory ratings, psychological scores) as observations.
 
 COMPONENTS FIELD:
 Always provide a components array listing ALL substances in the sample:
@@ -75,7 +101,8 @@ For each attribute:
 PERIPHERAL CONTEXT — JSON DOCUMENT
 ═══════════════════════════════════════════════════════════════════
 
-Capture all non-measurement information in a structured context document:
+Capture all non-measurement, non-panel information in a structured context document.
+Note: Panel information (demographics, traits, recruitment) belongs in the panels array above — do NOT duplicate it here.
 
 {
   "metadata": {
@@ -87,7 +114,6 @@ Capture all non-measurement information in a structured context document:
   "experiments": {
     "exp1": {
       "label": "...",
-      "panel": {"type": "...", "size": ..., "demographics": "...", "screening": "...", "training": "..."},
       "design": {"sessions": ..., "randomization": "...", "sample_volume": "...", "ISI": "...", "replicates": ..., "environment": "..."},
       "scale": {"type": "...", "full_name": "...", "range": "...", "anchors": [...]}
     }
@@ -130,8 +156,22 @@ Return a single JSON object:
   "experiments": [
     {"experiment": "exp1", "label": "...", "method": "...", "scale_type": "...", "scale_range": "..."}
   ],
+  "panels": [
+    {
+      "panel_label": "exp1_full",
+      "experiment": "exp1",
+      "parent_panel_label": null,
+      "panel_size": 25,
+      "attributes_json": {
+        "demographics": {"mean_age": 28.5, "gender_ratio_female": 0.64},
+        "sensory_traits": {"training_level": "naive"},
+        "recruitment": {"source": "university students"}
+      },
+      "description": "Full panel for Experiment 1"
+    }
+  ],
   "observations": [
-    { ...flat observation objects as described above... }
+    { ...flat observation objects as described above, each with panel_label and measurement_domain... }
   ],
   "context": { ...peripheral context document as described above... },
   "warnings": ["Any issues, ambiguities, or decisions made during structuring"]
@@ -141,13 +181,15 @@ Return a single JSON object:
 IMPORTANT RULES
 ═══════════════════════════════════════════════════════════════════
 
-1. Do not generate any IDs. Use simple experiment labels (exp1, exp2, ...). Use substance names as text.
-2. Every observation is self-contained — it carries its own substance, concentration, matrix, and attribute.
+1. Do not generate any IDs. Use simple experiment labels (exp1, exp2, ...) and panel_label strings. Use substance names as text.
+2. Every observation is self-contained — it carries its own substance, concentration, matrix, attribute, panel_label, and measurement_domain.
 3. Do not invent data. Only include values explicitly stated or clearly shown in the Agent 1 JSON.
 4. For mixtures: one observation row per measurement with ALL components in the components array.
 5. For derived metrics (slopes, EC50, potency ratios): set components to null, base_matrix to null, value_type to "derived_param".
 6. Include ALL data from the Agent 1 JSON — tables, text, and derived metrics. Do not skip any measurements.
-7. Generate one observation per unique (experiment, substance, components, attribute, value_type) combination.
+7. Generate one observation per unique (experiment, panel_label, substance, components, attribute, value_type) combination.
 8. If an error value is reported alongside a mean, include both in the same observation row.
+9. Panel demographics (age, BMI, gender, PROP status, training) must appear ONLY in the panels array — never as observations.
+10. measurement_domain must be "sensory" for taste/smell/texture/appearance ratings, and "psychological" for mood/emotion scales (PANAS, etc.).
 
 Return ONLY the JSON.

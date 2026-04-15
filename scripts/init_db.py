@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Initialize the v5 SQLite database schema for sensory data extraction.
+"""Initialize the v6 SQLite database schema for sensory data extraction.
+
+v6 changes (from v5):
+- Added panels table: panel as first-class measuring device entity
+- Panel attributes stored as attributes_json on the panels table
+- Observations gain panel_id FK and measurement_domain field
+- Panel demographics no longer contaminate sensory observations
 
 v5 changes (from v4):
 - Collapsed stimuli, samples, sample_components, results → observations
@@ -54,13 +60,29 @@ CREATE TABLE IF NOT EXISTS experiments (
     scale_range TEXT
 );
 
--- 3. observations: Core data — denormalized (replaces results + samples + sample_components + stimuli)
+-- 3. panels: The measuring device — paper-scoped, with parent-child support for subgroups.
+--    Each panel is a unique identity (like a separate instrument) even if demographics are identical.
+--    attributes_json holds demographics + sensory traits as a structured JSON blob.
+CREATE TABLE IF NOT EXISTS panels (
+    panel_id TEXT PRIMARY KEY,               -- deterministic: {paper_id}__panel_{label}
+    paper_id TEXT NOT NULL REFERENCES papers(paper_id),
+    parent_panel_id TEXT REFERENCES panels(panel_id),  -- NULL for full panel; FK for subgroups
+    panel_label TEXT NOT NULL,               -- e.g., "exp1_full", "exp3_super_tasters"
+    panel_size INTEGER,                      -- n (promoted column for easy querying)
+    attributes_json TEXT,                    -- JSON: {demographics: {...}, sensory_traits: {...}, recruitment: {...}}
+    description TEXT                         -- free-text context about this panel
+);
+
+-- 4. observations: Core data — denormalized (replaces results + samples + sample_components + stimuli)
 --    components_json stores the full composition as a JSON array.
 --    For stimulus-level derived metrics: components_json=NULL, value_type='derived_param'.
+--    panel_id links to the measuring device; measurement_domain distinguishes sensory from psychological.
 CREATE TABLE IF NOT EXISTS observations (
     observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
     paper_id TEXT NOT NULL REFERENCES papers(paper_id),
     experiment_id TEXT REFERENCES experiments(experiment_id),
+    panel_id TEXT REFERENCES panels(panel_id),
+    measurement_domain TEXT NOT NULL DEFAULT 'sensory',  -- 'sensory' or 'psychological'
     substance_name TEXT,
     components_json TEXT,
     base_matrix TEXT,
@@ -125,8 +147,12 @@ CREATE TABLE IF NOT EXISTS unit_conversions (
 
 INDEXES_SQL = """
 CREATE INDEX IF NOT EXISTS idx_experiments_paper ON experiments(paper_id);
+CREATE INDEX IF NOT EXISTS idx_panels_paper ON panels(paper_id);
+CREATE INDEX IF NOT EXISTS idx_panels_parent ON panels(parent_panel_id);
 CREATE INDEX IF NOT EXISTS idx_observations_paper ON observations(paper_id);
 CREATE INDEX IF NOT EXISTS idx_observations_experiment ON observations(experiment_id);
+CREATE INDEX IF NOT EXISTS idx_observations_panel ON observations(panel_id);
+CREATE INDEX IF NOT EXISTS idx_observations_domain ON observations(measurement_domain);
 CREATE INDEX IF NOT EXISTS idx_observations_substance ON observations(substance_name);
 CREATE INDEX IF NOT EXISTS idx_observations_attribute ON observations(attribute_normalized);
 CREATE INDEX IF NOT EXISTS idx_observations_run ON observations(run_id);
@@ -187,7 +213,7 @@ def _load_db_path() -> Path:
 
 
 def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
-    """Create / upgrade the v5 schema and return an open connection.
+    """Create / upgrade the v6 schema and return an open connection.
 
     Parameters
     ----------
@@ -226,7 +252,7 @@ def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Initialize v5 sensory-data SQLite schema.")
+    parser = argparse.ArgumentParser(description="Initialize v6 sensory-data SQLite schema.")
     parser.add_argument("--db", type=str, default=None, help="Override database path")
     args = parser.parse_args()
 

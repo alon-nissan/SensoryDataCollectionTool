@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Database access layer for the v5 sensory data schema."""
+"""Database access layer for the v6 sensory data schema."""
 
 import json
 import sqlite3
@@ -113,17 +113,57 @@ def add_substance_alias(conn: sqlite3.Connection, alias: str, substance_id: int)
     conn.commit()
 
 
+def insert_panel(conn: sqlite3.Connection, panel: dict) -> str:
+    """Insert or replace a panel record. Returns panel_id."""
+    cols = [
+        "panel_id", "paper_id", "parent_panel_id", "panel_label",
+        "panel_size", "attributes_json", "description",
+    ]
+    values = {c: panel.get(c) for c in cols}
+    if isinstance(values.get("attributes_json"), dict):
+        values["attributes_json"] = json.dumps(values["attributes_json"])
+
+    placeholders = ", ".join(f":{c}" for c in cols)
+    col_names = ", ".join(cols)
+
+    conn.execute(
+        f"INSERT OR REPLACE INTO panels ({col_names}) VALUES ({placeholders})",
+        values,
+    )
+    conn.commit()
+    return values["panel_id"]
+
+
+def get_panels_for_paper(conn: sqlite3.Connection, paper_id: str) -> list[dict]:
+    """Get all panels for a paper."""
+    rows = conn.execute(
+        "SELECT * FROM panels WHERE paper_id = ? ORDER BY panel_id",
+        (paper_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_panel(conn: sqlite3.Connection, panel_id: str) -> dict | None:
+    """Get a panel by ID."""
+    row = conn.execute(
+        "SELECT * FROM panels WHERE panel_id = ?", (panel_id,)
+    ).fetchone()
+    return dict(row) if row else None
+
+
 def insert_observation(conn: sqlite3.Connection, obs: dict) -> int:
     """Insert an observation row. Returns observation_id."""
     cols = [
-        "paper_id", "experiment_id", "substance_name",
-        "components_json", "base_matrix",
+        "paper_id", "experiment_id", "panel_id", "measurement_domain",
+        "substance_name", "components_json", "base_matrix",
         "is_control", "attribute_raw", "attribute_normalized",
         "value", "value_type", "error_value",
         "error_type", "source_type", "source_location",
         "extraction_confidence", "run_id",
     ]
     values = {c: obs.get(c) for c in cols}
+    if values.get("measurement_domain") is None:
+        values["measurement_domain"] = "sensory"
     if isinstance(values.get("components_json"), (list, dict)):
         values["components_json"] = json.dumps(values["components_json"])
 
@@ -144,8 +184,8 @@ def insert_observations_batch(conn: sqlite3.Connection, observations: list[dict]
         return 0
 
     cols = [
-        "paper_id", "experiment_id", "substance_name",
-        "components_json", "base_matrix",
+        "paper_id", "experiment_id", "panel_id", "measurement_domain",
+        "substance_name", "components_json", "base_matrix",
         "is_control", "attribute_raw", "attribute_normalized",
         "value", "value_type", "error_value",
         "error_type", "source_type", "source_location",
@@ -155,6 +195,8 @@ def insert_observations_batch(conn: sqlite3.Connection, observations: list[dict]
     rows = []
     for obs in observations:
         values = {c: obs.get(c) for c in cols}
+        if values.get("measurement_domain") is None:
+            values["measurement_domain"] = "sensory"
         if isinstance(values.get("components_json"), (list, dict)):
             values["components_json"] = json.dumps(values["components_json"])
         rows.append(values)
@@ -351,6 +393,7 @@ def get_paper_experiments(conn: sqlite3.Connection, paper_id: str) -> list[dict]
 def delete_paper_data(conn: sqlite3.Connection, paper_id: str):
     """Delete all data for a paper (for re-extraction). Order matters for FK constraints."""
     conn.execute("DELETE FROM observations WHERE paper_id = ?", (paper_id,))
+    conn.execute("DELETE FROM panels WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM experiments WHERE paper_id = ?", (paper_id,))
     conn.execute("UPDATE papers SET latest_run_id = NULL WHERE paper_id = ?", (paper_id,))
     conn.execute("DELETE FROM extraction_runs WHERE paper_id = ?", (paper_id,))
