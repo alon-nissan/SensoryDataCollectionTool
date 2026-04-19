@@ -9,11 +9,11 @@ from pathlib import Path
 import yaml
 from rich.console import Console
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
 from scripts.llm_extract import LLMClient, PromptTooLargeError, load_prompt
-from scripts.db import get_db, get_paper_observations, get_paper_experiments, get_panels_for_paper
+from scripts.db.db import get_db, get_paper_observations, get_paper_experiments, get_panels_for_paper
 
 console = Console()
 

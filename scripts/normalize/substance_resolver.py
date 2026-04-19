@@ -8,13 +8,12 @@ from pathlib import Path
 import yaml
 from rich.console import Console
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.db import (
+from scripts.db.db import (
     get_db, resolve_substance_by_alias, resolve_substance_by_name,
     resolve_substance_by_cas, insert_substance, add_substance_alias,
-    insert_stimulus,
 )
 from scripts.llm_extract import LLMClient
 

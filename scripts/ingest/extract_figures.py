@@ -8,7 +8,7 @@ from pathlib import Path
 import requests
 import yaml
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def load_config():
