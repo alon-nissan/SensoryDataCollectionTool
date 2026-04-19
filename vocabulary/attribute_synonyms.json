@@ -1,0 +1,17 @@
+{
+  "sweet taste": "sweetness",
+  "sweet": "sweetness",
+  "sweetness intensity": "sweetness",
+  "bitter": "bitterness",
+  "bitterness intensity": "bitterness",
+  "salty": "saltiness",
+  "saltiness intensity": "saltiness",
+  "sour": "sourness",
+  "sourness intensity": "sourness",
+  "savoury": "umami",
+  "savory": "umami",
+  "umami intensity": "umami",
+  "overall liking": "overall_liking",
+  "overall acceptability": "overall_liking",
+  "hedonic": "overall_liking"
+}

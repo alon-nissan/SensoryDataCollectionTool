@@ -76,7 +76,10 @@ CREATE TABLE IF NOT EXISTS panels (
 -- 4. observations: Core data — denormalized (replaces results + samples + sample_components + stimuli)
 --    components_json stores the full composition as a JSON array.
 --    For stimulus-level derived metrics: components_json=NULL, value_type='derived_param'.
---    panel_id links to the measuring device; measurement_domain distinguishes sensory from psychological.
+--    panel_id is nullable — most papers have a single implicit panel per experiment.
+--    measurement_domain distinguishes sensory from psychological observations.
+--    source_agent records which pipeline agent produced the row (agent2, agent3_figure, etc.)
+--    for per-agent precision/recall breakdown during evaluation.
 CREATE TABLE IF NOT EXISTS observations (
     observation_id INTEGER PRIMARY KEY AUTOINCREMENT,
     paper_id TEXT NOT NULL REFERENCES papers(paper_id),
@@ -96,6 +99,7 @@ CREATE TABLE IF NOT EXISTS observations (
     source_type TEXT,
     source_location TEXT,
     extraction_confidence TEXT,
+    source_agent TEXT,
     run_id INTEGER REFERENCES extraction_runs(run_id)
 );
 
@@ -147,18 +151,23 @@ CREATE TABLE IF NOT EXISTS unit_conversions (
 
 INDEXES_SQL = """
 CREATE INDEX IF NOT EXISTS idx_experiments_paper ON experiments(paper_id);
-CREATE INDEX IF NOT EXISTS idx_panels_paper ON panels(paper_id);
-CREATE INDEX IF NOT EXISTS idx_panels_parent ON panels(parent_panel_id);
 CREATE INDEX IF NOT EXISTS idx_observations_paper ON observations(paper_id);
 CREATE INDEX IF NOT EXISTS idx_observations_experiment ON observations(experiment_id);
-CREATE INDEX IF NOT EXISTS idx_observations_panel ON observations(panel_id);
-CREATE INDEX IF NOT EXISTS idx_observations_domain ON observations(measurement_domain);
 CREATE INDEX IF NOT EXISTS idx_observations_substance ON observations(substance_name);
 CREATE INDEX IF NOT EXISTS idx_observations_attribute ON observations(attribute_normalized);
 CREATE INDEX IF NOT EXISTS idx_observations_run ON observations(run_id);
 CREATE INDEX IF NOT EXISTS idx_extraction_runs_paper ON extraction_runs(paper_id);
 CREATE INDEX IF NOT EXISTS idx_substance_aliases_substance ON substance_aliases(substance_id);
 """
+
+# Indexes that depend on columns added via migration (created in _run_migrations, not here)
+_MIGRATION_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_panels_paper ON panels(paper_id)",
+    "CREATE INDEX IF NOT EXISTS idx_panels_parent ON panels(parent_panel_id)",
+    "CREATE INDEX IF NOT EXISTS idx_observations_panel ON observations(panel_id)",
+    "CREATE INDEX IF NOT EXISTS idx_observations_domain ON observations(measurement_domain)",
+    "CREATE INDEX IF NOT EXISTS idx_observations_source_agent ON observations(source_agent)",
+]
 
 # ---------------------------------------------------------------------------
 # Seed data
@@ -212,6 +221,37 @@ def _load_db_path() -> Path:
     return default
 
 
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply additive column and index migrations for existing databases.
+
+    Runs in order so each step is safe to re-run (try/except swallows
+    OperationalError when the column/index already exists).
+
+    v5 → v6:  panel_id and measurement_domain on observations, panels indexes
+    v6 → v6.1: source_agent on observations
+    """
+    column_migrations = [
+        # v5→v6
+        "ALTER TABLE observations ADD COLUMN panel_id TEXT REFERENCES panels(panel_id)",
+        "ALTER TABLE observations ADD COLUMN measurement_domain TEXT NOT NULL DEFAULT 'sensory'",
+        # v6.1
+        "ALTER TABLE observations ADD COLUMN source_agent TEXT",
+    ]
+    for sql in column_migrations:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already present
+
+    for sql in _MIGRATION_INDEXES:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # index already present or column doesn't exist yet
+
+
 def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
     """Create / upgrade the v6 schema and return an open connection.
 
@@ -238,6 +278,9 @@ def init_database(db_path: Path | str | None = None) -> sqlite3.Connection:
 
     # Indexes
     conn.executescript(INDEXES_SQL)
+
+    # Additive column migrations for existing databases
+    _run_migrations(conn)
 
     # Seed data
     inserted = seed_unit_conversions(conn)

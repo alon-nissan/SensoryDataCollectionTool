@@ -151,24 +151,57 @@ def get_panel(conn: sqlite3.Connection, panel_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+def ensure_default_panel(
+    conn: sqlite3.Connection,
+    paper_id: str,
+    experiment_id: str,
+    panel_size: int = None,
+) -> str:
+    """Create a minimal panel record for an experiment when panel details exist.
+
+    Use this only when a meaningful subgroup distinction warrants storing panel
+    metadata. Most observations can leave panel_id=NULL.
+    Returns the panel_id.
+    """
+    label = f"{experiment_id}_full"
+    panel_id = f"{paper_id}__panel_{label}"
+    conn.execute(
+        "INSERT OR IGNORE INTO panels (panel_id, paper_id, panel_label, panel_size) VALUES (?, ?, ?, ?)",
+        (panel_id, paper_id, label, panel_size),
+    )
+    conn.commit()
+    return panel_id
+
+
+# Observation column list (shared by insert_observation and insert_observations_batch).
+# panel_id is nullable — pass None when no panel record is needed.
+# source_agent tracks which pipeline agent produced the row ("agent2", "agent3_figure", etc.)
+# and is used for per-agent precision/recall during evaluation. It is optional.
+_OBS_COLS = [
+    "paper_id", "experiment_id", "panel_id", "measurement_domain",
+    "substance_name", "components_json", "base_matrix",
+    "is_control", "attribute_raw", "attribute_normalized",
+    "value", "value_type", "error_value",
+    "error_type", "source_type", "source_location",
+    "extraction_confidence", "source_agent", "run_id",
+]
+
+
 def insert_observation(conn: sqlite3.Connection, obs: dict) -> int:
-    """Insert an observation row. Returns observation_id."""
-    cols = [
-        "paper_id", "experiment_id", "panel_id", "measurement_domain",
-        "substance_name", "components_json", "base_matrix",
-        "is_control", "attribute_raw", "attribute_normalized",
-        "value", "value_type", "error_value",
-        "error_type", "source_type", "source_location",
-        "extraction_confidence", "run_id",
-    ]
-    values = {c: obs.get(c) for c in cols}
+    """Insert an observation row. Returns observation_id.
+
+    panel_id may be None — most observations don't need an explicit panel record.
+    substance_name is stored as plain text; substance registry resolution is a
+    post-processing enrichment step and is never required for ingestion.
+    """
+    values = {c: obs.get(c) for c in _OBS_COLS}
     if values.get("measurement_domain") is None:
         values["measurement_domain"] = "sensory"
     if isinstance(values.get("components_json"), (list, dict)):
         values["components_json"] = json.dumps(values["components_json"])
 
-    placeholders = ", ".join(f":{c}" for c in cols)
-    col_names = ", ".join(cols)
+    placeholders = ", ".join(f":{c}" for c in _OBS_COLS)
+    col_names = ", ".join(_OBS_COLS)
 
     cursor = conn.execute(
         f"INSERT INTO observations ({col_names}) VALUES ({placeholders})",
@@ -179,30 +212,26 @@ def insert_observation(conn: sqlite3.Connection, obs: dict) -> int:
 
 
 def insert_observations_batch(conn: sqlite3.Connection, observations: list[dict]) -> int:
-    """Insert multiple observation rows efficiently. Returns count inserted."""
+    """Insert multiple observation rows efficiently. Returns count inserted.
+
+    panel_id may be None on any row.
+    substance_name is stored as plain text — substance registry resolution is a
+    post-processing enrichment step and is never required for ingestion.
+    """
     if not observations:
         return 0
 
-    cols = [
-        "paper_id", "experiment_id", "panel_id", "measurement_domain",
-        "substance_name", "components_json", "base_matrix",
-        "is_control", "attribute_raw", "attribute_normalized",
-        "value", "value_type", "error_value",
-        "error_type", "source_type", "source_location",
-        "extraction_confidence", "run_id",
-    ]
-
     rows = []
     for obs in observations:
-        values = {c: obs.get(c) for c in cols}
+        values = {c: obs.get(c) for c in _OBS_COLS}
         if values.get("measurement_domain") is None:
             values["measurement_domain"] = "sensory"
         if isinstance(values.get("components_json"), (list, dict)):
             values["components_json"] = json.dumps(values["components_json"])
         rows.append(values)
 
-    placeholders = ", ".join(f":{c}" for c in cols)
-    col_names = ", ".join(cols)
+    placeholders = ", ".join(f":{c}" for c in _OBS_COLS)
+    col_names = ", ".join(_OBS_COLS)
 
     conn.executemany(
         f"INSERT INTO observations ({col_names}) VALUES ({placeholders})",
@@ -268,6 +297,30 @@ def update_paper_latest_run(conn: sqlite3.Connection, paper_id: str, run_id: int
 
 
 # ── Substance resolution ─────────────────────────────────────
+#
+# NOTE: Substance normalisation (linking substance_name text to a substances
+# registry row) is a post-processing enrichment step, NOT a requirement for
+# ingestion. Observations are stored with substance_name as plain text and the
+# pipeline proceeds regardless of whether a substances record exists.
+# Use resolve_or_skip_substance() when you want a best-effort lookup that
+# gracefully returns None rather than raising on failure.
+
+def resolve_or_skip_substance(conn: sqlite3.Connection, name: str) -> int | None:
+    """Attempt substance resolution, returning None gracefully if not found.
+
+    Tries alias lookup first, then normalized_name. Never raises — returns None
+    on any failure so ingestion is never blocked by unresolved substances.
+    """
+    if not name:
+        return None
+    try:
+        sid = resolve_substance_by_alias(conn, name)
+        if sid is not None:
+            return sid
+        return resolve_substance_by_name(conn, name)
+    except Exception:
+        return None
+
 
 def resolve_substance_by_alias(conn: sqlite3.Connection, name: str) -> int | None:
     """Look up a substance by alias. Returns substance_id or None."""
