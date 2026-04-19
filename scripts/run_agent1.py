@@ -19,9 +19,9 @@ from rich.console import Console
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.parse_article import parse_article
-from scripts.agent1_extract import run_agent1, save_agent1_output
-from scripts.paper_id import paper_id_from_filename, doi_to_paper_id
+from scripts.ingest.parse_article import parse_article
+from scripts.agents.agent1_extract import run_agent1, save_agent1_output
+from scripts.ingest.paper_id import paper_id_from_filename, doi_to_paper_id
 from scripts.llm_extract import LLMClient
 
 console = Console()

@@ -38,7 +38,7 @@ from schemas.ground_truth import (
     load_ground_truth,
     observations_to_ground_truth,
 )
-from scripts.db import get_db, get_paper_observations
+from scripts.db.db import get_db, get_paper_observations
 
 console = Console()
 

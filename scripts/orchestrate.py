@@ -38,12 +38,12 @@ from rich.table import Table
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
 
-from scripts.parse_article import detect_file_type, parse_article
-from scripts.extract_figures import download_figures
-from scripts.paper_id import doi_to_paper_id, paper_id_from_filename
+from scripts.ingest.parse_article import detect_file_type, parse_article
+from scripts.ingest.extract_figures import download_figures
+from scripts.ingest.paper_id import doi_to_paper_id, paper_id_from_filename
 from scripts.llm_extract import LLMClient, PromptTooLargeError
-from scripts.init_db import init_database
-from scripts.db import (
+from scripts.db.init_db import init_database
+from scripts.db.db import (
     get_db,
     insert_paper,
     create_extraction_run,
@@ -52,10 +52,10 @@ from scripts.db import (
     delete_paper_data,
     get_paper,
 )
-from scripts.agent1_extract import run_agent1, save_agent1_output
-from scripts.agent2_structure import run_agent2, commit_agent2_to_db, save_agent2_output
-from scripts.agent3_figures import run_agent3, save_agent3_output
-from scripts.agent4_validate import run_agent4, save_agent4_output
+from scripts.agents.agent1_extract import run_agent1, save_agent1_output
+from scripts.agents.agent2_structure import run_agent2, commit_agent2_to_db, save_agent2_output
+from scripts.agents.agent3_figures import run_agent3, save_agent3_output
+from scripts.agents.agent4_validate import run_agent4, save_agent4_output
 
 console = Console()
 
