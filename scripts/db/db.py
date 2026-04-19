@@ -434,6 +434,31 @@ def get_paper_observations(conn: sqlite3.Connection, paper_id: str) -> list[dict
     return [dict(r) for r in rows]
 
 
+def get_paper_observations_with_panels(conn: sqlite3.Connection, paper_id: str) -> list[dict]:
+    """Get all observations for a paper joined with panel metadata.
+
+    Returns a list of dicts containing all observations.* columns plus:
+      - panel_label_raw  (panels.panel_label)
+      - panel_size       (panels.panel_size)
+      - panels_attributes_json  (panels.attributes_json)
+    Panel columns are NULL when an observation has no associated panel.
+    """
+    rows = conn.execute(
+        """
+        SELECT o.*,
+               p.panel_label   AS panel_label_raw,
+               p.panel_size    AS panel_size,
+               p.attributes_json AS panels_attributes_json
+        FROM observations o
+        LEFT JOIN panels p ON o.panel_id = p.panel_id
+        WHERE o.paper_id = ?
+        ORDER BY o.experiment_id, o.substance_name
+        """,
+        (paper_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_paper_experiments(conn: sqlite3.Connection, paper_id: str) -> list[dict]:
     """Get all experiments for a paper."""
     rows = conn.execute(

@@ -20,6 +20,7 @@ env/
 data/html/
 data/figures/
 data/extractions/
+data/ground_truth/
 data/_cookies/
 data/_debug/
 sensory_data.db*

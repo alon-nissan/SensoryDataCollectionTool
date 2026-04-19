@@ -38,7 +38,7 @@ from schemas.ground_truth import (
     load_ground_truth,
     observations_to_ground_truth,
 )
-from scripts.db.db import get_db, get_paper_observations
+from scripts.db.db import get_db, get_paper_observations, get_paper_observations_with_panels
 
 console = Console()
 
@@ -101,14 +101,19 @@ def _source_category(source_location: str) -> str:
 # Row-level matching
 # ---------------------------------------------------------------------------
 
-def _conc_match(a: float | None, b: float | None, tol: float = 0.01) -> bool:
-    """True when both are None, or within relative tolerance."""
-    if a is None and b is None:
-        return True
-    if a is None or b is None:
-        return False
-    denom = max(abs(a), 1e-12)
-    return abs(a - b) / denom <= tol
+def _mixture_key(row: GroundTruthRow, substance_synonyms: dict) -> frozenset:
+    """Build a frozenset of (canonical_substance, concentration_rounded) pairs.
+
+    Covers both component slots. Used as the mixture identity key for matching.
+    """
+    pairs = []
+    if row.substance_1:
+        sub = _norm_substance(row.substance_1, substance_synonyms)
+        pairs.append((sub, round(row.concentration_1, 6) if row.concentration_1 is not None else None))
+    if row.substance_2:
+        sub = _norm_substance(row.substance_2, substance_synonyms)
+        pairs.append((sub, round(row.concentration_2, 6) if row.concentration_2 is not None else None))
+    return frozenset(pairs)
 
 
 def _structurally_match(
@@ -119,17 +124,29 @@ def _structurally_match(
 ) -> bool:
     """Return True if gt and pipe agree on all structural matching fields.
 
-    Fields checked: substance, experiment, value_type, attribute, concentration.
+    Fields checked: mixture set (substance+concentration for each component slot),
+    experiment, panel_label, measurement_domain, base_matrix, is_control,
+    attribute, value_type.
     """
-    if _norm_substance(gt.substance, substance_syn) != _norm_substance(pipe.substance, substance_syn):
+    if _mixture_key(gt, substance_syn) != _mixture_key(pipe, substance_syn):
         return False
     if (gt.experiment or "").lower() != (pipe.experiment or "").lower():
         return False
-    if (gt.value_type or "").lower() != (pipe.value_type or "").lower():
+    if (gt.panel_label or "").lower() != (pipe.panel_label or "").lower():
+        return False
+    gt_domain = (gt.measurement_domain or "sensory").lower()
+    pipe_domain = (pipe.measurement_domain or "sensory").lower()
+    if gt_domain != pipe_domain:
+        return False
+    gt_matrix = (gt.base_matrix or "").lower() or None
+    pipe_matrix = (pipe.base_matrix or "").lower() or None
+    if gt_matrix != pipe_matrix:
+        return False
+    if gt.is_control != pipe.is_control:
         return False
     if _norm_attribute(gt.attribute, attribute_syn) != _norm_attribute(pipe.attribute, attribute_syn):
         return False
-    if not _conc_match(gt.concentration, pipe.concentration):
+    if (gt.value_type or "").lower() != (pipe.value_type or "").lower():
         return False
     return True
 
@@ -261,6 +278,14 @@ def compute_metrics(
         lambda r: r.experiment or "",
         lambda r: r.experiment or "",
     )
+    by_panel = _breakdown(
+        lambda r: r.panel_label or "unknown",
+        lambda r: r.panel_label or "unknown",
+    )
+    by_domain = _breakdown(
+        lambda r: (r.measurement_domain or "sensory").lower(),
+        lambda r: (r.measurement_domain or "sensory").lower(),
+    )
 
     return {
         "overall": overall,
@@ -268,6 +293,8 @@ def compute_metrics(
         "by_source": by_source,
         "by_attribute": by_attribute,
         "by_experiment": by_experiment,
+        "by_panel": by_panel,
+        "by_domain": by_domain,
     }
 
 
@@ -329,10 +356,10 @@ def build_report(
 # ---------------------------------------------------------------------------
 
 def _load_pipeline_rows(paper_id: str) -> list[GroundTruthRow]:
-    """Load pipeline observations from the DB and convert to GroundTruthRow format."""
+    """Load pipeline observations (with panel metadata) from the DB and convert to GroundTruthRow format."""
     conn = get_db()
     try:
-        obs = get_paper_observations(conn, paper_id)
+        obs = get_paper_observations_with_panels(conn, paper_id)
     finally:
         conn.close()
     return observations_to_ground_truth(obs, paper_id)
